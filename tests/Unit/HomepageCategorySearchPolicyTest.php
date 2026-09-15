@@ -9,6 +9,15 @@ use PHPUnit\Framework\TestCase;
 
 class HomepageCategorySearchPolicyTest extends TestCase
 {
+    public function test_plural_category_name_reuses_the_existing_singular_topic_vocabulary(): void
+    {
+        $terms = (new HomepageCategorySearchPolicy())->terms('Startups');
+
+        $this->assertContains('startup', $terms);
+        $this->assertContains('founder', $terms);
+        $this->assertContains('venture capital', $terms);
+    }
+
     public function test_pharmaceuticals_category_accepts_a_source_about_a_clinical_cell_therapy_trial(): void
     {
         $search = new HomepageCategorySearchPolicy();

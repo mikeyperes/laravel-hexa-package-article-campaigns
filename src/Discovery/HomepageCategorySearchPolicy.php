@@ -21,6 +21,7 @@ class HomepageCategorySearchPolicy
         'entrepreneur' => ['entrepreneur', 'entrepreneurs', 'startup', 'founder', 'venture capital'],
         'entrepreneurs' => ['entrepreneur', 'entrepreneurs', 'startup', 'founder', 'venture capital'],
         'entrepreneurship' => ['entrepreneurship', 'startup', 'founder', 'small business', 'venture capital'],
+        'startup' => ['startup', 'startups', 'founder', 'founders', 'venture capital', 'funding round', 'early stage company', 'new venture'],
         'celebrity' => ['celebrity', 'actor', 'actress', 'singer', 'Hollywood'],
         'fashion' => ['fashion', 'designer', 'apparel', 'runway', 'fashion week'],
         'lifestyle' => ['lifestyle', 'wellness', 'food', 'home design', 'culture'],
@@ -214,9 +215,11 @@ class HomepageCategorySearchPolicy
         $key = Str::lower(trim($category));
         $key = preg_replace('/\s*&\s*/u', ' and ', $key) ?? $key;
         $key = trim(preg_replace('/\s*\([^)]*\)\s*$/u', '', $key) ?? $key);
-        $key = self::CATEGORY_ALIASES[$key] ?? $key;
-        if (isset(self::VOCABULARY[$key])) {
-            return self::VOCABULARY[$key];
+        foreach (array_values(array_unique([$key, Str::singular($key)])) as $candidate) {
+            $candidate = self::CATEGORY_ALIASES[$candidate] ?? $candidate;
+            if (isset(self::VOCABULARY[$candidate])) {
+                return self::VOCABULARY[$candidate];
+            }
         }
         $key = str_replace('-', ' ', $key);
         if (isset(self::VOCABULARY[$key])) {
