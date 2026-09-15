@@ -9,6 +9,30 @@ use PHPUnit\Framework\TestCase;
 
 class HomepageCategorySearchPolicyTest extends TestCase
 {
+    public function test_investing_intent_accepts_financial_asset_language_without_unrelated_homonyms(): void
+    {
+        $policy = new CampaignSourceRelevancePolicy(new CampaignNegativeTopicMatcher());
+
+        foreach ([
+            'When Stocks Signal Your Beliefs Instead of Your Wealth',
+            'Treasury bond yields rise',
+            'Investors reassess their investment strategy',
+            'ETF shareholders receive a dividend',
+        ] as $title) {
+            $this->assertTrue($policy->campaignIntentMatch($title, '', ['Investing'])['matched'], $title);
+        }
+        foreach ([
+            'How chefs prepare vegetable stock',
+            'James Bond returns to cinemas',
+            'Stores replenish stock before the holiday',
+        ] as $title) {
+            $this->assertFalse($policy->campaignIntentMatch($title, '', ['Investing'])['matched'], $title);
+        }
+        $this->assertFalse($policy->campaignIntentMatch(
+            'When Stocks Signal Your Beliefs Instead of Your Wealth', '', ['Artificial Intelligence']
+        )['matched']);
+    }
+
     public function test_plural_category_name_reuses_the_existing_singular_topic_vocabulary(): void
     {
         $terms = (new HomepageCategorySearchPolicy())->terms('Startups');

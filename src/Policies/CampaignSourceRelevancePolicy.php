@@ -470,6 +470,19 @@ class CampaignSourceRelevancePolicy
             $tokens[$this->singularIntentToken($token)] = true;
         }
 
+        // Asset names are not unconditionally financial: stock may be food or
+        // inventory, and Bond may be a name. Require a financial cue on the
+        // same surface before treating either as an investing concept.
+        $financialCues = array_flip([
+            'wealth', 'trading', 'share', 'investor', 'investment', 'investing',
+            'broker', 'brokerage', 'equity', 'earnings', 'dividend', 'portfolio',
+            'treasury', 'yield', 'debt',
+        ]);
+        if ((isset($tokens['stock']) || isset($tokens['bond']))
+            && array_intersect_key($tokens, $financialCues) !== []) {
+            $tokens['investment'] = true;
+        }
+
         return $tokens;
     }
 
@@ -516,6 +529,7 @@ class CampaignSourceRelevancePolicy
             'startup' => ['startup', 'venture'],
             'company' => ['company', 'business', 'firm'],
             'finance' => ['finance', 'financial', 'funding', 'capital'],
+            'invest', 'investing', 'investment', 'investor' => ['invest', 'investing', 'investment', 'investor', 'shareholder', 'dividend', 'etf'],
             'growth' => ['growth', 'grow', 'growing', 'expand', 'expanded', 'expansion'],
             'health', 'healthcare', 'medical' => ['health', 'healthcare', 'medical', 'clinical', 'patient', 'medtech'],
             'digital' => ['digital', 'software', 'platform', 'analytics', 'data', 'online'],
