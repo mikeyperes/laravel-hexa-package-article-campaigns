@@ -7,6 +7,11 @@ use Illuminate\Support\Str;
 /** Deterministic category expansion and relevance checks; no I/O or AI calls. */
 class HomepageCategorySearchPolicy
 {
+    private const CATEGORY_ALIASES = [
+        'pharmaceutical' => 'pharma',
+        'pharmaceuticals' => 'pharma',
+    ];
+
     private const VOCABULARY = [
         'business' => ['business', 'companies', 'economy', 'earnings', 'acquisition'],
         'business and industry' => ['business', 'companies', 'industry', 'earnings', 'acquisition'],
@@ -30,7 +35,12 @@ class HomepageCategorySearchPolicy
         'automation' => ['automation', 'automated systems', 'robotic systems', 'workflow automation', 'autonomous systems'],
         'medical' => ['medical research', 'healthcare', 'clinical research', 'patient care', 'public health'],
         'biotech' => ['biotechnology', 'biotech research', 'biopharmaceutical', 'cell therapy', 'gene therapy'],
-        'pharma' => ['pharmaceutical', 'drug development', 'clinical trials', 'drug approval', 'pharmaceutical research'],
+        'pharma' => [
+            'pharmaceutical', 'pharmaceuticals', 'pharma', 'drug development',
+            'clinical trial', 'clinical trials', 'drug approval', 'pharmaceutical research',
+            'biopharmaceutical', 'therapeutic', 'therapy', 'cell therapy', 'gene therapy',
+            'medicine', 'medicines',
+        ],
         'podcasts' => ['podcast interview', 'podcast episode', 'podcast conversation', 'audio interview'],
         'innovation' => ['innovation', 'applied research', 'research breakthrough', 'new technology', 'scientific discovery'],
         'personal tech' => ['personal technology', 'consumer technology', 'smartphone', 'personal computing', 'consumer electronics'],
@@ -204,6 +214,7 @@ class HomepageCategorySearchPolicy
         $key = Str::lower(trim($category));
         $key = preg_replace('/\s*&\s*/u', ' and ', $key) ?? $key;
         $key = trim(preg_replace('/\s*\([^)]*\)\s*$/u', '', $key) ?? $key);
+        $key = self::CATEGORY_ALIASES[$key] ?? $key;
         if (isset(self::VOCABULARY[$key])) {
             return self::VOCABULARY[$key];
         }
