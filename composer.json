@@ -1,0 +1,27 @@
+{
+    "name": "hexawebsystems/laravel-hexa-package-article-campaigns",
+    "version": "1.0.0",
+    "description": "Generic Laravel article campaign domain engine, manifest mapping, source-pool policies, scheduling, and orchestration ports.",
+    "type": "library",
+    "license": "proprietary",
+    "require": {
+        "php": "^8.2",
+        "illuminate/support": "^11.0|^12.0",
+        "illuminate/validation": "^11.0|^12.0",
+        "nesbot/carbon": "^3.0"
+    },
+    "autoload": {
+        "psr-4": {
+            "hexa_package_article_campaigns\\": "src/"
+        }
+    },
+    "extra": {
+        "laravel": {
+            "providers": [
+                "hexa_package_article_campaigns\\Providers\\ArticleCampaignsServiceProvider"
+            ]
+        }
+    },
+    "minimum-stability": "dev",
+    "prefer-stable": true
+}
