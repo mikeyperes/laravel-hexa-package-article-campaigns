@@ -33,7 +33,11 @@ final class PublicationManifestMapper
         return rtrim($canonical, '/').self::MANIFEST_PATH;
     }
 
-    public function map(array $manifest, string $siteUrl, ?string $effectiveUrl = null): array
+    /**
+     * @param array{name?: string, topic?: string} $campaignEditorial The consuming campaign's own
+     *        name and topic, used only when the manifest identity establishes no focus or subject.
+     */
+    public function map(array $manifest, string $siteUrl, ?string $effectiveUrl = null, array $campaignEditorial = []): array
     {
         $siteUrl = $this->canonicalSiteUrl($siteUrl);
         if ($siteUrl === null) {
@@ -180,7 +184,25 @@ final class PublicationManifestMapper
             (string) ($homepage['title'] ?? ''),
         ]));
         $focus = $this->searchPolicy->publicationFocus($identity);
-        $categories = $this->buildSearchCategories(array_values($campaignIndex), $identity, $focus);
+        // CRITICAL — see laravel-hexa-app-publish BUGLOG.md CAMPAIGN-BUG-006. A manifest
+        // identity is often only a name and slogan; without this fallback the pool ran with
+        // no focus, which disabled the focus gate and focus-prefixed discovery.
+        $editorialIdentity = trim(implode(' ', [
+            (string) ($campaignEditorial['name'] ?? ''),
+            (string) ($campaignEditorial['topic'] ?? ''),
+        ]));
+        if ($focus === null && $editorialIdentity !== '') {
+            $focus = $this->searchPolicy->publicationFocus($editorialIdentity);
+            if ($focus !== null) {
+                $focus['source'] = 'campaign_editorial';
+            }
+        }
+        $categories = $this->buildSearchCategories(
+            array_values($campaignIndex),
+            $identity,
+            $focus,
+            (string) ($campaignEditorial['topic'] ?? ''),
+        );
 
         $definition = [
             'version' => 1,
@@ -344,6 +366,21 @@ final class PublicationManifestMapper
     }
 
     /** @return array<int, string> */
+    private function editorialTopicTerms(string $topic): array
+    {
+        $phrases = preg_split('/\s*(?:,|;|\band\b)\s*/i', $topic) ?: [];
+        $terms = [];
+        foreach ($phrases as $phrase) {
+            $phrase = trim((string) preg_replace('/\bnews\b\.?$/i', '', trim($phrase)));
+            if ($phrase !== '' && mb_strlen($phrase) <= 60) {
+                $terms[] = $phrase;
+            }
+        }
+
+        return array_values(array_unique($terms));
+    }
+
+    /** @return array<int, string> */
     private function sourceKeys(array $category): array
     {
         $keys = array_map(
@@ -356,7 +393,7 @@ final class PublicationManifestMapper
     }
 
     /** @return array<int, array<string, mixed>> */
-    private function buildSearchCategories(array $categories, string $identity, ?array $focus): array
+    private function buildSearchCategories(array $categories, string $identity, ?array $focus, string $editorialTopic = ''): array
     {
         $specific = [];
         foreach ($categories as $category) {
@@ -380,6 +417,14 @@ final class PublicationManifestMapper
                     $specific = array_merge($specific, $this->searchPolicy->terms($subject));
                 }
             }
+        }
+        // Homepages that expose only generic sections ("Press Release", "Features") borrow
+        // the publication focus, then the campaign's own topic phrases, before failing.
+        if ($specific === [] && $focus !== null) {
+            $specific = (array) ($focus['terms'] ?? []);
+        }
+        if ($specific === [] && trim($editorialTopic) !== '') {
+            $specific = $this->editorialTopicTerms($editorialTopic);
         }
         $specific = array_values(array_unique($specific));
 

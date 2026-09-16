@@ -102,7 +102,7 @@ class HomepageCategorySearchPolicy
         // Use the publication's own identity, not a passing story or a person's
         // name. Broad category names must not erase an explicit audience remit.
         $text = Str::lower(Str::ascii($identity));
-        if (preg_match('/\b(?:medical tech(?:nology)?|healthcare technology|digital health|biotechnology|pharmaceutical)\b/', $text)
+        if (preg_match('/\b(?:medical tech(?:nology)?|healthcare technology|digital health|biotech(?:nology)?|pharmaceuticals?|life sciences)\b/', $text)
             && ! preg_match('/\b(?:general news|politics|sports|fashion|entertainment news)\b/', $text)) {
             return [
                 'label' => 'medical technology, healthcare, biotechnology and pharmaceutical research',
@@ -121,12 +121,25 @@ class HomepageCategorySearchPolicy
                 'homepage_evidence' => $identity,
             ];
         }
-        if (preg_match('/\b(?:transportation technology|transport technology|future of transport|future of mobility)\b/', $text)
+        if (preg_match('/\b(?:transportation technology|transport technology|future of transport|future of mobility|mobility technology|autonomous vehicles|public transit)\b/', $text)
             && !preg_match('/\b(?:general news|politics|sports)\b/', $text)) {
             return [
                 'label' => 'transportation technology, mobility, travel and smart infrastructure',
                 'query_prefix' => '(transport OR mobility OR travel OR infrastructure)',
                 'terms' => ['transport', 'transportation', 'transit', 'mobility', 'vehicle', 'vehicles', 'automotive', 'rail', 'railway', 'railways', 'bus', 'buses', 'aviation', 'airline', 'airlines', 'airport', 'airports', 'aircraft', 'logistics', 'freight', 'shipping', 'travel', 'tourism', 'infrastructure', 'smart building', 'smart buildings', 'building automation'],
+                'homepage_evidence' => $identity,
+            ];
+        }
+        // CRITICAL — see laravel-hexa-app-publish BUGLOG.md CAMPAIGN-BUG-006. A celebrity
+        // wealth remit must be the article's subject: match the headline surface only,
+        // because one incidental body word ("luxury", "real estate") let local news through.
+        if (preg_match("/\\bcelebrit(?:y|ies)(?:'s)?[\\s-]+(?:wealth|finance|finances|fortunes?|net worth|money)\\b/", $text)
+            && ! preg_match('/\b(?:general news|breaking news)\b/', $text)) {
+            return [
+                'label' => 'celebrity wealth, luxury and money',
+                'query_prefix' => '(celebrity OR billionaire OR "net worth" OR luxury OR wealth)',
+                'terms' => ['celebrity', 'celebrities', 'net worth', 'fortune', 'fortunes', 'wealth', 'wealthy', 'rich', 'richest', 'billionaire', 'billionaires', 'millionaire', 'millionaires', 'luxury', 'luxurious', 'mansion', 'mansions', 'yacht', 'yachts', 'private jet', 'hollywood', 'brand deal', 'brand deals', 'endorsement', 'endorsements', 'royal', 'royals'],
+                'surface' => 'headline',
                 'homepage_evidence' => $identity,
             ];
         }
@@ -197,10 +210,12 @@ class HomepageCategorySearchPolicy
         }
         // Require explicit evidence in editorial metadata or the opening.
         // Names and a mention buried in a biography do not establish gender.
+        // A focus marked `headline` must appear in the title or description, not the body.
+        $headlineOnly = data_get($definition, 'publication_focus.surface') === 'headline';
         $surface = Str::lower(Str::ascii(strip_tags(implode(' ', [
             (string) ($source['title'] ?? ''),
             (string) ($source['description'] ?? $source['excerpt'] ?? $source['snippet'] ?? ''),
-            mb_substr((string) ($source['text'] ?? $source['content'] ?? ''), 0, 1600),
+            $headlineOnly ? '' : mb_substr((string) ($source['text'] ?? $source['content'] ?? ''), 0, 1600),
         ]))));
         foreach ($terms as $term) {
             if (preg_match('/(?<![a-z0-9])'.preg_quote(Str::lower(Str::ascii((string) $term)), '/').'(?![a-z0-9])/i', $surface)) {

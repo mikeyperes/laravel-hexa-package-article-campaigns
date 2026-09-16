@@ -41,3 +41,28 @@ had not been released, so those pools could not be rebuilt.
 **Guard.** A change that tightens `isUsableManifestDefinition()` or the manifest
 contract must ship with a rescan or migration of every live campaign it
 affects, and the plugin version it depends on must be released first.
+
+---
+
+## CAMPAIGN-BUG-006 — Manifest pools ran with no publication focus
+
+- **Severity:** High
+- **Status:** Patched 2026-09-16 — full entry in the laravel-hexa-app-publish BUGLOG
+- **Code here:** `PublicationManifestMapper::map()` campaign-editorial focus
+  fallback; `HomepageCategorySearchPolicy::publicationFocus()` celebrity-wealth
+  profile with `surface = headline`, plus wider medical and transport triggers;
+  `matchesPublicationFocus()` headline-only surface.
+
+**Guard — do not remove.** Code marked `CRITICAL — see laravel-hexa-app-publish
+BUGLOG.md CAMPAIGN-BUG-006`. An empty focus silently disables the focus gate.
+
+---
+
+## CAMPAIGN-BUG-009 — Generic-only homepages failed the scan
+
+- **Severity:** High
+- **Status:** Patched 2026-09-16 — full entry in the laravel-hexa-app-publish BUGLOG
+- **Code here:** `PublicationManifestMapper::buildSearchCategories()` falls back
+  to focus terms, then `editorialTopicTerms()`, when no section has a specific
+  subject.
+
