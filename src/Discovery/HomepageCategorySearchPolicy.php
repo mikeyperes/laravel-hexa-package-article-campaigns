@@ -13,7 +13,9 @@ class HomepageCategorySearchPolicy
     ];
 
     private const VOCABULARY = [
-        'business' => ['business', 'companies', 'economy', 'earnings', 'acquisition'],
+        // CAMPAIGN-BUG-014: the first five terms drive queries; the rest let core business news
+        // (a Fed rate decision) satisfy the headline check instead of wasting a paid draft.
+        'business' => ['business', 'companies', 'economy', 'earnings', 'acquisition', 'interest rates', 'inflation', 'federal reserve', 'markets', 'revenue', 'profit'],
         'business and industry' => ['business', 'companies', 'industry', 'earnings', 'acquisition'],
         'science and innovation' => ['science', 'scientific research', 'research breakthrough', 'innovation', 'applied research'],
         'infrastructure' => ['infrastructure', 'infrastructure investment', 'public works', 'critical infrastructure', 'digital infrastructure'],

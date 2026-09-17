@@ -79,3 +79,21 @@ BUGLOG.md CAMPAIGN-BUG-006`. An empty focus silently disables the focus gate.
 **Guard — do not remove.** Code marked `CRITICAL — see laravel-hexa-app-publish
 BUGLOG.md CAMPAIGN-BUG-011`.
 
+---
+
+## CAMPAIGN-BUG-014 — Business headlines about rates or inflation failed the lane check
+
+- **Severity:** Medium (paid draft rejected; campaign 39 published nothing)
+- **Status:** Patched 2026-09-17 in 1.0.8
+- **Impact:** Operation #6636 (campaign 39, Breaking 9 To 5) found a Fox Business
+  Federal Reserve rate-hike story through "business news", generated "Fed Lifts
+  Interest Rates as Stubborn Inflation Persists", then failed Publication fit:
+  the headline contained none of the Business lane terms (business, companies,
+  economy, earnings, acquisition).
+
+**Patch.** `HomepageCategorySearchPolicy::VOCABULARY['business']` adds interest
+rates, inflation, federal reserve, markets, revenue and profit after the first
+five query terms, so queries are unchanged. The Fed headline now passes; the
+off-topic Rich Reporter headlines from CAMPAIGN-BUG-006 still fail. Pools store
+terms at scan time, so campaigns 39 and 52 were rescanned.
+
