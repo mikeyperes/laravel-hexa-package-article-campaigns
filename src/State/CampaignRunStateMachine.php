@@ -7,6 +7,7 @@ use DomainException;
 final class CampaignRunStateMachine
 {
     public const CREATED = 'created';
+    public const PREPARING = 'preparing';
     public const SOURCING = 'sourcing';
     public const GENERATING = 'generating';
     public const DELIVERING = 'delivering';
@@ -15,7 +16,8 @@ final class CampaignRunStateMachine
 
     /** @var array<string, array<int, string>> */
     private const TRANSITIONS = [
-        self::CREATED => [self::SOURCING, self::FAILED],
+        self::CREATED => [self::PREPARING, self::SOURCING, self::FAILED],
+        self::PREPARING => [self::SOURCING, self::FAILED],
         self::SOURCING => [self::GENERATING, self::FAILED],
         self::GENERATING => [self::DELIVERING, self::FAILED],
         self::DELIVERING => [self::COMPLETED, self::FAILED],

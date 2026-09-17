@@ -7,62 +7,43 @@ use hexa_package_article_campaigns\Contracts\ArticleGenerationPort;
 use hexa_package_article_campaigns\Contracts\SourceDiscoveryPort;
 use hexa_package_article_campaigns\Data\CampaignRunContext;
 use hexa_package_article_campaigns\Data\CampaignRunResult;
+use hexa_package_article_campaigns\Data\PortCampaignWorkflowState;
 use hexa_package_article_campaigns\State\CampaignRunStateMachine;
 
-/** Application-neutral sequencing; adapters own persistence and providers. */
+/** Backward-compatible three-port facade over the single workflow coordinator. */
 final class CampaignOrchestrator
 {
+    private CampaignWorkflowOrchestrator $workflow;
+
+    private ThreePortCampaignWorkflowAdapter $adapter;
+
     public function __construct(
-        private SourceDiscoveryPort $sources,
-        private ArticleGenerationPort $generator,
-        private ArticleDeliveryPort $delivery,
-        private CampaignRunStateMachine $states,
-    ) {}
+        SourceDiscoveryPort $sources,
+        ArticleGenerationPort $generator,
+        ArticleDeliveryPort $delivery,
+        CampaignRunStateMachine $states,
+    ) {
+        $this->workflow = new CampaignWorkflowOrchestrator($states);
+        $this->adapter = new ThreePortCampaignWorkflowAdapter($sources, $generator, $delivery);
+    }
 
     public function run(CampaignRunContext $context): CampaignRunResult
     {
-        $state = $this->states->transition(CampaignRunStateMachine::CREATED, CampaignRunStateMachine::SOURCING);
-        $sources = $this->sources->discover($context);
-        if ($sources->isEmpty()) {
-            return new CampaignRunResult(
-                successful: false,
-                state: $this->states->transition($state, CampaignRunStateMachine::FAILED),
-                failureCode: 'source_pool_exhausted',
-                message: 'No eligible source was available. Generation was not called.',
-            );
-        }
-
-        $state = $this->states->transition($state, CampaignRunStateMachine::GENERATING);
-        $article = $this->generator->generate($context, $sources);
-        if (trim($article->title) === '' || trim($article->body) === '') {
-            return new CampaignRunResult(
-                successful: false,
-                state: $this->states->transition($state, CampaignRunStateMachine::FAILED),
-                failureCode: 'generated_article_incomplete',
-                message: 'The generated article is incomplete.',
-                article: $article,
-            );
-        }
-
-        $state = $this->states->transition($state, CampaignRunStateMachine::DELIVERING);
-        $delivery = $this->delivery->deliver($context, $article);
-        if (! $delivery->successful) {
-            return new CampaignRunResult(
-                successful: false,
-                state: $this->states->transition($state, CampaignRunStateMachine::FAILED),
-                failureCode: 'delivery_failed',
-                message: $delivery->message,
-                article: $article,
-                delivery: $delivery,
-            );
-        }
+        $result = $this->workflow->run(new CampaignRunContext(
+            campaignKey: $context->campaignKey,
+            publicationKey: $context->publicationKey,
+            settings: $context->settings,
+            runtime: new PortCampaignWorkflowState(),
+        ), $this->adapter);
 
         return new CampaignRunResult(
-            successful: true,
-            state: $this->states->transition($state, CampaignRunStateMachine::COMPLETED),
-            message: $delivery->message,
-            article: $article,
-            delivery: $delivery,
+            successful: $result->successful,
+            state: $result->state,
+            failureCode: $result->failureCode,
+            message: $result->message,
+            article: $result->metadata['article'] ?? null,
+            delivery: $result->metadata['delivery'] ?? null,
+            metadata: $result->metadata,
         );
     }
 }

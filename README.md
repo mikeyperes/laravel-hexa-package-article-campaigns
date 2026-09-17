@@ -10,6 +10,11 @@ Publish models, database tables, controllers, routes, views, provider clients,
 or WordPress delivery code. Consuming applications supply those through
 adapters.
 
+`CampaignWorkflowOrchestrator` is the single reusable lifecycle coordinator:
+prepare, discover, generate, deliver. The original three-port
+`CampaignOrchestrator` remains source compatible by adapting those ports into
+that same coordinator; it does not maintain a second execution sequence.
+
 ## Campaign bug log
 
 [BUGLOG.md](BUGLOG.md) records every critical and high-severity campaign bug

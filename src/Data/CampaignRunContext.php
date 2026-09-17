@@ -9,5 +9,6 @@ final readonly class CampaignRunContext
         public int|string $campaignKey,
         public int|string|null $publicationKey,
         public array $settings = [],
+        public mixed $runtime = null,
     ) {}
 }

@@ -4,6 +4,7 @@ namespace hexa_package_article_campaigns\Data;
 
 final readonly class CampaignRunResult
 {
+    /** @param array<string, mixed> $metadata */
     public function __construct(
         public bool $successful,
         public string $state,
@@ -11,5 +12,6 @@ final readonly class CampaignRunResult
         public ?string $message = null,
         public ?GeneratedArticle $article = null,
         public ?DeliveryResult $delivery = null,
+        public array $metadata = [],
     ) {}
 }
