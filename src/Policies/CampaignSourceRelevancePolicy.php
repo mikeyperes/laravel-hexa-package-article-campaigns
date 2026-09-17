@@ -124,15 +124,20 @@ class CampaignSourceRelevancePolicy
             'deal', 'investment', 'brand', 'launch', 'acquisition',
             'real estate', 'property', 'wealth', 'finance', 'financial', 'earnings',
         ]);
-        $aligned = $hasCelebritySignal && $hasBusinessEventSignal
-            ? $query
-            : trim('recent celebrity business deals investments brand launches real estate '.$query);
-
-        if (! str_contains(Str::lower($aligned), 'last 14 days')) {
-            $aligned .= ' reported in the last 14 days excluding evergreen guides rankings listicles directories';
+        if ($hasCelebritySignal && $hasBusinessEventSignal) {
+            return $query;
         }
 
-        return trim($aligned);
+        // CRITICAL — see laravel-hexa-app-publish BUGLOG.md CAMPAIGN-BUG-011. Keyword
+        // providers AND every word: a sentence-style query ("recent celebrity business
+        // deals ... reported in the last 14 days excluding evergreen guides") returned
+        // nothing from Google News RSS and HTTP 422 from NewsData. Keep the alignment as a
+        // compact OR group and drop filler words; result filters handle listicles.
+        $core = trim((string) preg_replace('/\s+/', ' ', (string) preg_replace('/\b(?:news|today|latest|breaking)\b/i', ' ', $query)));
+        $prefix = ($hasCelebritySignal ? '' : 'celebrity ')
+            .($hasBusinessEventSignal ? '' : '(deal OR investment OR brand OR launch OR "real estate")');
+
+        return trim($prefix.' '.$core);
     }
 
     /**

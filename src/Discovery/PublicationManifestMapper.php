@@ -197,12 +197,7 @@ final class PublicationManifestMapper
                 $focus['source'] = 'campaign_editorial';
             }
         }
-        $categories = $this->buildSearchCategories(
-            array_values($campaignIndex),
-            $identity,
-            $focus,
-            (string) ($campaignEditorial['topic'] ?? ''),
-        );
+        $categories = $this->buildSearchCategories(array_values($campaignIndex), $identity, $focus);
 
         $definition = [
             'version' => 1,
@@ -366,21 +361,6 @@ final class PublicationManifestMapper
     }
 
     /** @return array<int, string> */
-    private function editorialTopicTerms(string $topic): array
-    {
-        $phrases = preg_split('/\s*(?:,|;|\band\b)\s*/i', $topic) ?: [];
-        $terms = [];
-        foreach ($phrases as $phrase) {
-            $phrase = trim((string) preg_replace('/\bnews\b\.?$/i', '', trim($phrase)));
-            if ($phrase !== '' && mb_strlen($phrase) <= 60) {
-                $terms[] = $phrase;
-            }
-        }
-
-        return array_values(array_unique($terms));
-    }
-
-    /** @return array<int, string> */
     private function sourceKeys(array $category): array
     {
         $keys = array_map(
@@ -393,7 +373,7 @@ final class PublicationManifestMapper
     }
 
     /** @return array<int, array<string, mixed>> */
-    private function buildSearchCategories(array $categories, string $identity, ?array $focus, string $editorialTopic = ''): array
+    private function buildSearchCategories(array $categories, string $identity, ?array $focus): array
     {
         $specific = [];
         foreach ($categories as $category) {
@@ -419,12 +399,10 @@ final class PublicationManifestMapper
             }
         }
         // Homepages that expose only generic sections ("Press Release", "Features") borrow
-        // the publication focus, then the campaign's own topic phrases, before failing.
+        // the publication focus terms before failing. Campaign topic phrases were tried and
+        // removed: they built lanes whose sources never passed relevance (CAMPAIGN-BUG-009).
         if ($specific === [] && $focus !== null) {
             $specific = (array) ($focus['terms'] ?? []);
-        }
-        if ($specific === [] && trim($editorialTopic) !== '') {
-            $specific = $this->editorialTopicTerms($editorialTopic);
         }
         $specific = array_values(array_unique($specific));
 

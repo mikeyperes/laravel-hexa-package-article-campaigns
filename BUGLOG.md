@@ -63,6 +63,19 @@ BUGLOG.md CAMPAIGN-BUG-006`. An empty focus silently disables the focus gate.
 - **Severity:** High
 - **Status:** Patched 2026-09-16 — full entry in the laravel-hexa-app-publish BUGLOG
 - **Code here:** `PublicationManifestMapper::buildSearchCategories()` falls back
-  to focus terms, then `editorialTopicTerms()`, when no section has a specific
-  subject.
+  to focus terms when no section has a specific subject. A campaign-topic phrase
+  fallback was removed in 1.0.7 after it produced lanes that never passed
+  relevance (campaign 63).
+
+---
+
+## CAMPAIGN-BUG-011 — Sentence-style discovery query returned nothing
+
+- **Severity:** High
+- **Status:** Patched 2026-09-17 in 1.0.7 — full entry in the laravel-hexa-app-publish BUGLOG
+- **Code here:** `CampaignSourceRelevancePolicy::alignDiscoveryQueryWithResolvedIntent()`
+  now builds a compact OR-group query without instruction prose.
+
+**Guard — do not remove.** Code marked `CRITICAL — see laravel-hexa-app-publish
+BUGLOG.md CAMPAIGN-BUG-011`.
 
