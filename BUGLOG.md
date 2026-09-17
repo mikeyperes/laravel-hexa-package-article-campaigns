@@ -56,6 +56,13 @@ affects, and the plugin version it depends on must be released first.
 **Guard — do not remove.** Code marked `CRITICAL — see laravel-hexa-app-publish
 BUGLOG.md CAMPAIGN-BUG-006`. An empty focus silently disables the focus gate.
 
+**2026-09-17 addition (1.0.9).** An entrepreneurship profile (`surface = headline`)
+for identities such as "Your Entrepreneurial Journey Starts Here" (breaking9to5.com,
+campaign 39). Without it the campaign published "Economic Collapse Pushes Afghan
+Migrants Out of Iran…" (article 7478) and earlier Indian political and
+enforcement stories. Against its last 25 headlines the profile blocks those and
+passes founder, small-business and company stories.
+
 ---
 
 ## CAMPAIGN-BUG-009 — Generic-only homepages failed the scan

@@ -171,6 +171,19 @@ class HomepageCategorySearchPolicy
                 'homepage_evidence' => $identity,
             ];
         }
+        // CRITICAL — see laravel-hexa-app-publish BUGLOG.md CAMPAIGN-BUG-006. An
+        // entrepreneurship identity without a focus published geopolitics on "economic"
+        // wording; the remit must appear in the headline or description.
+        if (preg_match('/\bentrepreneur(?:ial|ship|s)?\b/', $text)
+            && ! preg_match('/\b(?:general news|politics|sports|entertainment news|celebrity)\b/', $text)) {
+            return [
+                'label' => 'entrepreneurship, small business, founders and business strategy',
+                'query_prefix' => '(entrepreneur OR startup OR founder OR "small business")',
+                'terms' => ['entrepreneur', 'entrepreneurs', 'entrepreneurial', 'entrepreneurship', 'startup', 'startups', 'founder', 'founders', 'small business', 'small businesses', 'business owner', 'business owners', 'ceo', 'company', 'companies', 'brand', 'brands', 'business strategy', 'workplace', 'employees', 'funding', 'venture capital', 'franchise', 'bankruptcy', 'acquisition', 'merger'],
+                'surface' => 'headline',
+                'homepage_evidence' => $identity,
+            ];
+        }
         // Multiple explicit identity signals establish a specialist remit;
         // article-feed mentions and general-news identities do not.
         preg_match_all('/\b(?:cryptocurrency|crypto|blockchain|web3|digital assets|nfts)\b/', $text, $digitalSignals);
