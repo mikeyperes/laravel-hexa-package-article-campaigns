@@ -173,6 +173,8 @@ final class PublicationManifestMapper
         }
 
         $publishingRequirements = $this->requiredMap($manifest, 'publishing_requirements');
+        $schema = $this->requiredMap($manifest, 'schema');
+        $taxonomyCapabilities = PublicationTaxonomyCapabilities::fromManifest($publishingRequirements, $schema);
         $defaultCategoryId = (int) ($publishingRequirements['default_category_id'] ?? 0);
         if ($defaultCategoryId > 0 && isset($campaignIndex[$defaultCategoryId])) {
             throw $this->failure('the WordPress default category was incorrectly marked campaign eligible');
@@ -207,6 +209,7 @@ final class PublicationManifestMapper
             'manifest_plugin_version' => (string) data_get($manifest, 'plugin.version'),
             'manifest_fingerprint' => $manifestFingerprint,
             'homepage_url' => $homepageUrl,
+            'taxonomy_capabilities' => $taxonomyCapabilities,
             'categories' => $categories,
         ];
         if ($focus !== null) {
@@ -215,6 +218,7 @@ final class PublicationManifestMapper
 
         $definition['fingerprint'] = hash('sha256', json_encode([
             $definition['homepage_url'],
+            $definition['taxonomy_capabilities'],
             $definition['categories'],
             $definition['publication_focus'] ?? null,
         ], JSON_THROW_ON_ERROR));
