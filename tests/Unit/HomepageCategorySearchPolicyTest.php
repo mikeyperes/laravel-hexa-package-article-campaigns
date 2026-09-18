@@ -69,4 +69,33 @@ class HomepageCategorySearchPolicyTest extends TestCase
         $this->assertTrue($intent['configured']);
         $this->assertTrue($intent['matched']);
     }
+
+    public function test_business_law_uses_legal_terms_instead_of_general_economy_terms(): void
+    {
+        $terms = (new HomepageCategorySearchPolicy())->terms('Business Law');
+
+        $this->assertContains('corporate law', $terms);
+        $this->assertContains('regulation', $terms);
+        $this->assertContains('litigation', $terms);
+        $this->assertNotContains('economy', $terms);
+        $this->assertNotContains('interest rates', $terms);
+    }
+
+    public function test_law_news_focus_rejects_economy_story_without_a_legal_subject(): void
+    {
+        $search = new HomepageCategorySearchPolicy();
+        $focus = $search->publicationFocus('Law News Day');
+
+        $this->assertNotNull($focus);
+        $this->assertSame('headline', $focus['surface']);
+        $this->assertFalse($search->matchesPublicationFocus([
+            'title' => "Russia's Military Spending Strains Economy Despite Apparent Stability",
+            'description' => 'Budget deficits, inflation and interest rates weigh on growth.',
+            'text' => str_repeat('The economy faces high borrowing costs and weak consumer confidence. ', 6),
+        ], ['publication_focus' => $focus]));
+        $this->assertTrue($search->matchesPublicationFocus([
+            'title' => 'Federal Court Rules on Corporate Antitrust Lawsuit',
+            'description' => 'The ruling changes compliance obligations for companies.',
+        ], ['publication_focus' => $focus]));
+    }
 }

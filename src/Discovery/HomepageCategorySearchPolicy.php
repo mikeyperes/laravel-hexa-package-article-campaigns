@@ -60,6 +60,10 @@ class HomepageCategorySearchPolicy
         'e-commerce' => ['ecommerce', 'online retail', 'online shopping', 'retail technology', 'digital commerce'],
         'leadership' => ['business leadership', 'management', 'executive', 'workplace', 'company strategy'],
         'reputation management' => ['reputation management', 'corporate reputation', 'public relations', 'brand reputation', 'crisis communications'],
+        // CAMPAIGN-BUG-020: legal categories must not collapse to the broad Business
+        // vocabulary merely because their labels contain the word "business".
+        'business law' => ['business law', 'corporate law', 'commercial law', 'regulation', 'regulatory', 'compliance', 'antitrust', 'litigation', 'lawsuit', 'legal', 'court ruling', 'corporate governance', 'contract law', 'merger review'],
+        'law' => ['law', 'legal', 'regulation', 'lawsuit', 'litigation', 'court ruling', 'legislation', 'attorney', 'lawyer', 'judge', 'compliance'],
         'legal' => ['law', 'regulation', 'lawsuit', 'legal services', 'court ruling'],
         'personal development' => ['career development', 'professional skills', 'learning', 'mentoring', 'productivity'],
         'diversity' => ['workplace diversity', 'inclusion', 'equal opportunity', 'accessibility', 'representation'],
@@ -104,6 +108,19 @@ class HomepageCategorySearchPolicy
         // Use the publication's own identity, not a passing story or a person's
         // name. Broad category names must not erase an explicit audience remit.
         $text = Str::lower(Str::ascii($identity));
+        // CRITICAL — see BUGLOG.md CAMPAIGN-BUG-020. A legal-news identity must
+        // require an actual legal subject in the headline. Generic business and
+        // economy language is not enough for a law publication.
+        if (preg_match('/\b(?:law|legal)[\s-]+(?:news|publication|journal|journalism|report|reporting|media)\b/', $text)
+            && ! preg_match('/\b(?:general news|sports|fashion|entertainment news)\b/', $text)) {
+            return [
+                'label' => 'law, courts, regulation, litigation and legal practice',
+                'query_prefix' => '(law OR legal OR regulation OR court OR lawsuit)',
+                'terms' => ['law', 'legal', 'court', 'courts', 'lawsuit', 'lawsuits', 'litigation', 'regulation', 'regulatory', 'legislation', 'attorney', 'attorneys', 'lawyer', 'lawyers', 'judge', 'judges', 'ruling', 'rulings', 'compliance', 'antitrust', 'corporate law', 'commercial law', 'business law', 'legal practice'],
+                'surface' => 'headline',
+                'homepage_evidence' => $identity,
+            ];
+        }
         if (preg_match('/\b(?:medical tech(?:nology)?|healthcare technology|digital health|biotech(?:nology)?|pharmaceuticals?|life sciences)\b/', $text)
             && ! preg_match('/\b(?:general news|politics|sports|fashion|entertainment news)\b/', $text)) {
             return [

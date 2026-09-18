@@ -104,3 +104,31 @@ five query terms, so queries are unchanged. The Fed headline now passes; the
 off-topic Rich Reporter headlines from CAMPAIGN-BUG-006 still fail. Pools store
 terms at scan time, so campaigns 39 and 52 were rescanned.
 
+---
+
+## CAMPAIGN-BUG-020 — Law publication accepted a general economy article
+
+- **Severity:** High (off-topic article published on Law News Day)
+- **Status:** Patched 2026-09-17 in 1.1.2; affected campaign pool requires rebuild
+- **Impact:** Campaign 68 article 7517 published a Russia wartime-economy story
+  under `Features`, even though the story had no legal subject. The automated
+  publication-fit check passed on `economy`, `interest rates`, `inflation` and
+  other general business terms.
+
+**Root cause.** `Business Law` had no exact category vocabulary, so compound
+label expansion matched `business` and supplied general economy terms. The
+publication-focus resolver also had no legal-news identity, so `Law News Day`
+did not require law, courts, regulation, litigation or legal practice to be the
+story's subject. The generic `Features` lane inherited the same business-only
+terms.
+
+**Patch.** Add exact `Business Law` and `Law` vocabularies and a headline-only
+legal-news publication focus. General economy stories no longer pass merely on
+business language, while court, regulation, litigation, compliance and legal-
+practice stories remain eligible. Rebuilding a manifest pool applies the new
+terms and focus to every relevant category without site-specific configuration.
+
+**Guard — do not remove.** Keep legal-publication focus headline-bound and keep
+`Business Law` distinct from the broad `business` vocabulary. Regression tests
+must include the rejected Law News Day economy headline and an accepted court
+or regulation headline.
