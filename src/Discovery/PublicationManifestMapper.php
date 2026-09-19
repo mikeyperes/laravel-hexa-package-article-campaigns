@@ -19,9 +19,14 @@ final class PublicationManifestMapper
 
     private const MAXIMUM_CATEGORIES = 60;
 
+    private CampaignDefinitionCompiler $definitionCompiler;
+
     public function __construct(
         private HomepageCategorySearchPolicy $searchPolicy,
-    ) {}
+        ?CampaignDefinitionCompiler $definitionCompiler = null,
+    ) {
+        $this->definitionCompiler = $definitionCompiler ?? new CampaignDefinitionCompiler($searchPolicy);
+    }
 
     public function manifestUrl(string $siteUrl): string
     {
@@ -34,8 +39,10 @@ final class PublicationManifestMapper
     }
 
     /**
-     * @param array{name?: string, topic?: string} $campaignEditorial The consuming campaign's own
-     *        name and topic, used only when the manifest identity establishes no focus or subject.
+     * The fourth argument is retained for source compatibility only. Version 2
+     * definitions never read campaign names, old topics or saved prompt text.
+     *
+     * @param array{name?: string, topic?: string} $campaignEditorial
      */
     public function map(array $manifest, string $siteUrl, ?string $effectiveUrl = null, array $campaignEditorial = []): array
     {
@@ -55,6 +62,24 @@ final class PublicationManifestMapper
         $taxonomies = $this->requiredMap($manifest, 'taxonomies');
         $delivery = $this->requiredMap($manifest, 'delivery_capabilities');
         $meta = $this->requiredMap($manifest, 'meta');
+
+        $collectionStatus = trim((string) ($homepage['collection_status'] ?? $manifest['collection_status'] ?? $meta['collection_status'] ?? 'complete'));
+        $collectionWarnings = $homepage['collection_warnings'] ?? $manifest['collection_warnings'] ?? $meta['collection_warnings'] ?? [];
+        if (! is_array($collectionWarnings)
+            || array_filter($collectionWarnings, static fn (mixed $warning): bool => ! is_string($warning)) !== []) {
+            throw $this->failure('the manifest collection warnings are malformed');
+        }
+        if (! in_array($collectionStatus, ['complete', 'partial'], true)) {
+            throw $this->failure('the manifest collection status is invalid');
+        }
+        if ($collectionStatus === 'partial') {
+            $warnings = array_filter(array_map(
+                static fn (string $value): string => trim(preg_replace('/[\x00-\x1F\x7F]/u', ' ', $value) ?? ''),
+                $collectionWarnings,
+            ));
+            $warning = trim(implode('; ', array_slice($warnings, 0, 3)));
+            throw $this->failure('the Elementor homepage collection is partial'.($warning !== '' ? ' ('.$warning.')' : ''));
+        }
 
         $publicationUrl = (string) ($publication['url'] ?? '');
         $homepageUrl = (string) ($homepage['url'] ?? '');
@@ -180,50 +205,22 @@ final class PublicationManifestMapper
             throw $this->failure('the WordPress default category was incorrectly marked campaign eligible');
         }
 
-        $identity = trim(implode(' ', [
-            $publicationName,
-            (string) ($publication['description'] ?? ''),
-            (string) ($homepage['title'] ?? ''),
-        ]));
-        $focus = $this->searchPolicy->publicationFocus($identity);
-        // CRITICAL — see laravel-hexa-app-publish BUGLOG.md CAMPAIGN-BUG-006. A manifest
-        // identity is often only a name and slogan; without this fallback the pool ran with
-        // no focus, which disabled the focus gate and focus-prefixed discovery.
-        $editorialIdentity = trim(implode(' ', [
-            (string) ($campaignEditorial['name'] ?? ''),
-            (string) ($campaignEditorial['topic'] ?? ''),
-        ]));
-        if ($focus === null && $editorialIdentity !== '') {
-            $focus = $this->searchPolicy->publicationFocus($editorialIdentity);
-            if ($focus !== null) {
-                $focus['source'] = 'campaign_editorial';
-            }
-        }
-        $categories = $this->buildSearchCategories(array_values($campaignIndex), $identity, $focus);
+        unset($campaignEditorial);
 
-        $definition = [
-            'version' => 1,
-            'retrieval_method' => HomepageCategoryPoolDefinition::RETRIEVAL_METHOD,
-            'manifest_url' => $manifestUrl,
-            'manifest_api_version' => self::API_VERSION,
-            'manifest_plugin_version' => (string) data_get($manifest, 'plugin.version'),
-            'manifest_fingerprint' => $manifestFingerprint,
-            'homepage_url' => $homepageUrl,
-            'taxonomy_capabilities' => $taxonomyCapabilities,
-            'categories' => $categories,
-        ];
-        if ($focus !== null) {
-            $definition['publication_focus'] = $focus;
-        }
-
-        $definition['fingerprint'] = hash('sha256', json_encode([
-            $definition['homepage_url'],
-            $definition['taxonomy_capabilities'],
-            $definition['categories'],
-            $definition['publication_focus'] ?? null,
-        ], JSON_THROW_ON_ERROR));
-
-        return $definition;
+        return $this->definitionCompiler->compile(
+            $manifestUrl,
+            self::API_VERSION,
+            (string) data_get($manifest, 'plugin.version'),
+            $manifestFingerprint,
+            $homepageUrl,
+            $taxonomyCapabilities,
+            array_values($campaignIndex),
+            [
+                'name' => $publicationName,
+                'description' => (string) ($publication['description'] ?? ''),
+                'homepage_title' => (string) ($homepage['title'] ?? ''),
+            ],
+        )->toArray();
     }
 
     private function validateManifestIdentity(array $manifest): void
@@ -231,7 +228,7 @@ final class PublicationManifestMapper
         $allowedRoots = [
             'api_version', 'plugin', 'publication', 'homepage', 'taxonomies', 'recent_content',
             'authors', 'post_types', 'publishing_requirements', 'media', 'seo', 'schema',
-            'delivery_capabilities', 'meta',
+            'delivery_capabilities', 'meta', 'collection_status', 'collection_warnings',
         ];
         if (array_diff(array_keys($manifest), $allowedRoots) !== []) {
             throw $this->failure('the manifest contains unsupported root fields');
@@ -267,6 +264,7 @@ final class PublicationManifestMapper
             $name = trim((string) ($record['name'] ?? ''));
             $slug = trim((string) ($record['slug'] ?? ''));
             $url = trim((string) ($record['url'] ?? ''));
+            $description = trim((string) ($record['description'] ?? ''));
             $policy = $record['campaign_policy'] ?? null;
             $status = is_array($policy) ? (string) ($policy['status'] ?? '') : '';
 
@@ -274,6 +272,8 @@ final class PublicationManifestMapper
                 || preg_match('/[\x00-\x1F\x7F]/u', $name)
                 || $slug === '' || mb_strlen($slug) > 200
                 || preg_match('/[\x00-\x20\x7F\/\\?#]/u', $slug)
+                || mb_strlen($description) > 2000
+                || preg_match('/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]/u', $description)
                 || ! in_array($status, ['eligible', 'reserved', 'excluded'], true)
                 || ($requiredStatus !== null && $status !== $requiredStatus)
                 || ! $this->belongsToSite($url, $siteUrl)) {
@@ -318,6 +318,7 @@ final class PublicationManifestMapper
                 'id' => $id,
                 'name' => $name,
                 'slug' => $slug,
+                'description' => $description,
                 'homepage_link' => $url,
                 'homepage_evidence' => [
                     'kind' => 'smp_publication_manifest',
@@ -374,77 +375,6 @@ final class PublicationManifestMapper
         sort($keys);
 
         return $keys;
-    }
-
-    /** @return array<int, array<string, mixed>> */
-    private function buildSearchCategories(array $categories, string $identity, ?array $focus): array
-    {
-        $specific = [];
-        foreach ($categories as $category) {
-            if (! $this->searchPolicy->generic($category['name'])) {
-                $specific = array_merge($specific, $this->searchPolicy->terms($category['name']));
-            }
-        }
-        if ($specific === []) {
-            foreach ([
-                'SEO' => 'search engine optimization',
-                'hosting' => 'web hosting',
-                'book' => 'book publishing',
-                'medical' => 'medical technology',
-                'women' => 'women entrepreneurs',
-                'blockchain' => 'blockchain',
-                'golf' => 'golf',
-                'press release' => 'public relations',
-                'public relations' => 'public relations',
-            ] as $needle => $subject) {
-                if (stripos($identity, $needle) !== false) {
-                    $specific = array_merge($specific, $this->searchPolicy->terms($subject));
-                }
-            }
-        }
-        // Homepages that expose only generic sections ("Press Release", "Features") borrow
-        // the publication focus terms before failing. Campaign topic phrases were tried and
-        // removed: they built lanes whose sources never passed relevance (CAMPAIGN-BUG-009).
-        if ($specific === [] && $focus !== null) {
-            $specific = (array) ($focus['terms'] ?? []);
-        }
-        $specific = array_values(array_unique($specific));
-
-        foreach ($categories as &$category) {
-            $category['terms'] = $this->searchPolicy->generic($category['name'])
-                ? array_slice($specific, 0, 15)
-                : $this->searchPolicy->terms($category['name']);
-            $category['terms'] = array_values(array_unique(array_filter(array_map(
-                static fn ($term): string => trim((string) $term),
-                $category['terms'],
-            ))));
-            if ($category['terms'] === []) {
-                throw $this->failure('the homepage category "'.$category['name'].'" has no clear search subject');
-            }
-
-            $category['content_mode'] = in_array(strtolower($category['name']), [
-                'knowledge base', 'resources', 'guides', 'tutorials', 'how to',
-            ], true) ? 'evergreen' : 'news';
-            $suffix = $category['content_mode'] === 'evergreen' ? ' guide' : ' news';
-            $category['queries'] = array_map(
-                static fn (string $term): string => $term.$suffix,
-                array_slice($category['terms'], 0, 5),
-            );
-            if (count($category['queries']) === 1) {
-                $category['queries'][] = $category['terms'][0].' industry developments';
-                $category['queries'][] = $category['terms'][0].' research innovation';
-            }
-            if ($focus !== null) {
-                $category['queries'] = array_map(
-                    static fn (string $query): string => $focus['query_prefix'].' '.$query,
-                    $category['queries'],
-                );
-            }
-            unset($category['policy_status']);
-        }
-        unset($category);
-
-        return $categories;
     }
 
     private function fingerprintMatches(array $manifest, string $expected): bool

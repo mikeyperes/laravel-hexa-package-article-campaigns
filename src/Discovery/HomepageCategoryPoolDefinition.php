@@ -2,7 +2,9 @@
 
 namespace hexa_package_article_campaigns\Discovery;
 
+use hexa_package_article_campaigns\Data\CampaignDefinition;
 use RuntimeException;
+use Throwable;
 
 /** Stable, application-neutral settings for a manifest-backed campaign pool. */
 class HomepageCategoryPoolDefinition
@@ -47,6 +49,11 @@ class HomepageCategoryPoolDefinition
 
     public static function isUsableManifestDefinition(array $definition): bool
     {
+        if (array_key_exists('definition_version', $definition)
+            && (int) $definition['definition_version'] >= CampaignDefinition::DEFINITION_VERSION) {
+            return self::isCurrentManifestDefinition($definition);
+        }
+
         return ($definition['retrieval_method'] ?? null) === self::RETRIEVAL_METHOD
             && ($definition['manifest_api_version'] ?? null) === self::MANIFEST_API_VERSION
             && is_string($definition['manifest_plugin_version'] ?? null)
@@ -55,6 +62,23 @@ class HomepageCategoryPoolDefinition
             && preg_match('/^[a-f0-9]{64}$/', (string) ($definition['manifest_fingerprint'] ?? '')) === 1
             && preg_match('/^[a-f0-9]{64}$/', (string) ($definition['fingerprint'] ?? '')) === 1
             && ! empty($definition['categories']);
+    }
+
+    /** A strict definition for new setup, activation, refresh and migration paths. */
+    public static function isCurrentManifestDefinition(array $definition): bool
+    {
+        try {
+            CampaignDefinition::fromArray($definition);
+
+            return true;
+        } catch (Throwable) {
+            return false;
+        }
+    }
+
+    public static function definition(array $definition): CampaignDefinition
+    {
+        return CampaignDefinition::fromArray($definition);
     }
 
     private static function instructions(array $definition): string

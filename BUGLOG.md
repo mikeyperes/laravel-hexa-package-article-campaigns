@@ -47,7 +47,7 @@ affects, and the plugin version it depends on must be released first.
 ## CAMPAIGN-BUG-006 — Manifest pools ran with no publication focus
 
 - **Severity:** High
-- **Status:** Patched 2026-09-16 — full entry in the laravel-hexa-app-publish BUGLOG
+- **Status:** Superseded 2026-09-19 by CAMPAIGN-BUG-034
 - **Code here:** `PublicationManifestMapper::map()` campaign-editorial focus
   fallback; `HomepageCategorySearchPolicy::publicationFocus()` celebrity-wealth
   profile with `surface = headline`, plus wider medical and transport triggers;
@@ -55,6 +55,12 @@ affects, and the plugin version it depends on must be released first.
 
 **Guard — do not remove.** Code marked `CRITICAL — see laravel-hexa-app-publish
 BUGLOG.md CAMPAIGN-BUG-006`. An empty focus silently disables the focus gate.
+
+**Superseding correction.** The campaign-editorial fallback fixed a missing
+manifest input by importing mutable legacy campaign state. Version 2 definitions
+instead compile only the richer first-party manifest identity, categories,
+descriptions and Elementor section evidence. Explicit specialist identity still
+creates a focus; broad publications correctly have no mandatory niche focus.
 
 **2026-09-17 addition (1.0.9).** An entrepreneurship profile (`surface = headline`)
 for identities such as "Your Entrepreneurial Journey Starts Here" (breaking9to5.com,
@@ -252,3 +258,57 @@ the same complete-source category evidence. Compare all eligible categories,
 preserve per-source relevance, do not duplicate thresholds in an adapter, treat
 a generic section as a dominant subject, or accept a stored specific category
 that is not the supported winner.
+
+---
+
+## CAMPAIGN-BUG-034 — Legacy campaign text contaminated manifest definitions
+
+- **Severity:** High (new publications could require recurring custom repair)
+- **Status:** Patched in source 2026-09-19 13:38:27 EST; pending coordinated release and migration
+
+**Impact.** When a homepage manifest did not match a hardcoded profile, its
+campaign name/topic could become a mandatory publication focus. Vocabulary and
+focus branches also lived in the classifier, so an unfamiliar category could
+require a PHP change before setup worked.
+
+**Root cause.** The saved campaign row was treated as discovery input, and
+declarative language data was mixed with policy algorithms.
+
+**Patch.** `CampaignDefinition` schema 2 and `CampaignDefinitionCompiler`
+compile one fingerprinted policy input from the validated manifest only.
+Category vocabulary and first-party identity profiles are package resources;
+unknown categories derive bounded terms from their manifest label, description,
+slug and Elementor section evidence. App binding metadata is excluded from the
+semantic fingerprint. Partial collection fails before generation. Version 1
+definitions remain readable until coordinated migration, while malformed
+version 2 definitions cannot fall back to legacy validation.
+
+**Guard — do not remove.** New setup/activation/refresh must require a current
+definition. Never use campaign names, topics, site IDs or saved prompt text to
+compile manifest policy. Migrate live version 1 pools before enforcing version
+2 at runtime.
+
+---
+
+## CAMPAIGN-BUG-035 — Companion source prevented correct lane reconciliation
+
+- **Severity:** High (correct primary source could be rejected before generation)
+- **Status:** Patched in source 2026-09-19 13:38:27 EST; pending coordinated release
+
+**Impact.** A complete primary source could clearly belong to another homepage
+category, but an unrelated companion source reinforced the stale discovery lane
+enough to block reclassification.
+
+**Root cause.** Aggregate scoring ran before the priority-ordered primary source
+was resolved, and the early selected-lane gate did not share the final article
+classifier's full-whitelist semantics.
+
+**Patch.** `resolveAndFilterHomepageSources()` resolves the complete primary
+source across every fixed manifest category before lane rejection, returns the
+resolved category ID, then checks each companion independently against that same
+lane and focus. Current definitions use this path in the generic prefilter;
+legacy definitions retain their prior behavior until migration.
+
+**Guard — do not remove.** Preserve source priority, compare the full whitelist
+before selected-lane rejection, keep fixed manifest IDs, and reject every
+unrelated companion independently before any paid generation.

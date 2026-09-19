@@ -19,6 +19,10 @@ class CampaignSourceRelevancePolicy
 
     public function filterRelevant(array $sourceTexts, array $resolved, callable $emit): array
     {
+        if ($this->usesCurrentHomepageDefinition($resolved)) {
+            return $this->resolveAndFilterHomepageSources($sourceTexts, $resolved, $emit)['accepted_sources'];
+        }
+
         $requiresCelebrityBusiness = $this->requiresCelebrityBusinessSources($resolved);
         $searchTerms = $this->resolvedIntentTerms($resolved);
         $hasCampaignIntent = $this->campaignIntentMatch('', '', $searchTerms)['configured'];
@@ -69,6 +73,16 @@ class CampaignSourceRelevancePolicy
     public function sourceMatchesResolvedIntent(array $source, array $resolved): bool
     {
         if (($resolved['discovery_process'] ?? '') === HomepageCategoryPoolDefinition::TYPE) {
+            if ($this->usesCurrentHomepageDefinition($resolved)) {
+                foreach ($this->homepageCategories($resolved) as $category) {
+                    if ($this->sourceMatchesHomepageCategory($source, $resolved, (string) ($category['name'] ?? ''))) {
+                        return true;
+                    }
+                }
+
+                return false;
+            }
+
             $category = trim((string) ($resolved['forced_category'] ?? ''));
             $terms = [];
             foreach ((array) data_get($resolved, 'homepage_pool.categories', []) as $lane) {
@@ -136,6 +150,118 @@ class CampaignSourceRelevancePolicy
     }
 
     /**
+     * Resolve the complete source set across the full fixed manifest whitelist
+     * before a selected-lane rejection can discard the right story. Every
+     * companion source is then checked independently against the resolved lane.
+     *
+     * @param array<int, array<string, mixed>> $sourceTexts
+     * @param array<string, mixed> $resolved
+     * @return array{selected_category:string,selected_category_id:?int,resolved_category:string,resolved_category_id:?int,selected_category_supported:bool,reclassified:bool,reason:string,scores:array<int,array<string,mixed>>,accepted_sources:array<int,array<string,mixed>>,rejected_sources:array<int,array<string,mixed>>,source_decisions:array<int,array<string,mixed>>}
+     */
+    public function resolveAndFilterHomepageSources(array $sourceTexts, array $resolved, ?callable $emit = null): array
+    {
+        $selected = trim((string) ($resolved['forced_category'] ?? ''));
+        $categories = $this->homepageCategories($resolved);
+        $aggregateDecision = $this->homepageCategorySearchPolicy->resolveDominantCategory(
+            $sourceTexts,
+            $categories,
+            $selected,
+        );
+        $primaryDecision = $sourceTexts === []
+            ? $aggregateDecision
+            : $this->homepageCategorySearchPolicy->resolveDominantCategory(
+                [reset($sourceTexts)],
+                $categories,
+                $selected,
+            );
+        // Source packets are priority ordered. Resolve the complete primary
+        // source first so an unrelated companion cannot reinforce the stale
+        // discovery lane and suppress a correct reclassification.
+        $decision = (
+            (bool) ($primaryDecision['reclassified'] ?? false)
+            || (bool) ($primaryDecision['selected_category_supported'] ?? false)
+        ) ? $primaryDecision : $aggregateDecision;
+        $resolvedCategory = trim((string) ($decision['resolved_category'] ?? $selected));
+        $accepted = [];
+        $rejected = [];
+        $sourceDecisions = [];
+
+        foreach ($sourceTexts as $index => $source) {
+            $sourceDecision = $this->homepageCategorySearchPolicy->resolveDominantCategory(
+                [$source],
+                $categories,
+                $resolvedCategory,
+            );
+            $matches = $this->sourceMatchesHomepageCategory($source, $resolved, $resolvedCategory)
+                && ! (bool) ($sourceDecision['reclassified'] ?? false);
+            $sourceDecisions[$index] = $sourceDecision + ['accepted' => $matches];
+            if ($matches) {
+                $accepted[] = $source;
+                continue;
+            }
+
+            $rejected[] = [
+                'source' => $source,
+                'reason' => (bool) ($sourceDecision['reclassified'] ?? false)
+                    ? 'different_manifest_category'
+                    : 'resolved_category_not_supported',
+                'resolved_category' => (string) ($sourceDecision['resolved_category'] ?? ''),
+            ];
+            if ($emit !== null) {
+                $emit('warning', 'Dropped source outside resolved homepage category: '.Str::limit((string) ($source['title'] ?? $source['url'] ?? 'Untitled'), 90), [
+                    'stage' => 'extraction',
+                    'substage' => 'manifest_category_relevance_dropped',
+                    'selected_category' => $selected,
+                    'resolved_category' => $resolvedCategory,
+                    'source_category' => $sourceDecision['resolved_category'] ?? null,
+                    'url' => $source['url'] ?? null,
+                ]);
+            }
+        }
+
+        return $decision + [
+            'selected_category_id' => $this->categoryId($categories, $selected),
+            'resolved_category_id' => $this->categoryId($categories, $resolvedCategory),
+            'accepted_sources' => $accepted,
+            'rejected_sources' => $rejected,
+            'source_decisions' => $sourceDecisions,
+        ];
+    }
+
+    /**
+     * Strict post-resolution check shared by generation and article audit.
+     *
+     * @param array<string, mixed> $source
+     * @param array<string, mixed> $resolved
+     */
+    public function sourceMatchesHomepageCategory(array $source, array $resolved, string $category): bool
+    {
+        $terms = [];
+        foreach ($this->homepageCategories($resolved) as $lane) {
+            if (strcasecmp($category, (string) ($lane['name'] ?? '')) !== 0) {
+                continue;
+            }
+            $terms = array_merge(
+                (array) ($lane['terms'] ?? []),
+                $this->homepageCategorySearchPolicy->termsForEvidence(
+                    (string) ($lane['name'] ?? ''),
+                    (string) ($lane['description'] ?? ''),
+                    array_map(
+                        static fn (array $evidence): string => (string) ($evidence['section'] ?? ''),
+                        array_filter((array) data_get($lane, 'homepage_evidence.sources', []), 'is_array'),
+                    ),
+                    (string) ($lane['slug'] ?? ''),
+                ),
+            );
+            break;
+        }
+
+        return $terms !== []
+            && $this->homepageCategorySearchPolicy->matches($source, array_values(array_unique($terms)))
+            && $this->homepageCategorySearchPolicy->matchesPublicationFocus($source, (array) ($resolved['homepage_pool'] ?? []));
+    }
+
+    /**
      * Keep discovery queries aligned with mandatory source validation rules.
      *
      * Category rotation may select a narrower term that omits a campaign-wide
@@ -189,11 +315,65 @@ class CampaignSourceRelevancePolicy
             return false;
         }
 
+        if ($this->usesCurrentHomepageDefinition($resolved)) {
+            $category = trim((string) ($resolved['forced_category'] ?? ''));
+            if ($category === '') {
+                return false;
+            }
+
+            foreach ($sourceTexts as $source) {
+                $sourceDecision = $this->homepageCategorySearchPolicy->resolveDominantCategory(
+                    [$source],
+                    $this->homepageCategories($resolved),
+                    $category,
+                );
+                if ((bool) ($sourceDecision['reclassified'] ?? false)
+                    || ! $this->sourceMatchesHomepageCategory($source, $resolved, $category)) {
+                    return false;
+                }
+            }
+
+            return true;
+        }
+
         return count($this->filterRelevant(
             $sourceTexts,
             $resolved,
             static function (string $type, string $message, array $context): void {},
         )) === count($sourceTexts);
+    }
+
+    /** @param array<string, mixed> $resolved */
+    private function usesCurrentHomepageDefinition(array $resolved): bool
+    {
+        return ($resolved['discovery_process'] ?? '') === HomepageCategoryPoolDefinition::TYPE
+            && HomepageCategoryPoolDefinition::isCurrentManifestDefinition((array) ($resolved['homepage_pool'] ?? []));
+    }
+
+    /**
+     * @param array<string, mixed> $resolved
+     * @return array<int, array<string, mixed>>
+     */
+    private function homepageCategories(array $resolved): array
+    {
+        return array_values(array_filter(
+            (array) data_get($resolved, 'homepage_pool.categories', []),
+            'is_array',
+        ));
+    }
+
+    /** @param array<int, array<string, mixed>> $categories */
+    private function categoryId(array $categories, string $name): ?int
+    {
+        foreach ($categories as $category) {
+            if (strcasecmp($name, (string) ($category['name'] ?? '')) === 0) {
+                $id = $category['id'] ?? null;
+
+                return is_int($id) && $id > 0 ? $id : null;
+            }
+        }
+
+        return null;
     }
 
     /**

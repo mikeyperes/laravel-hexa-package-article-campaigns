@@ -34,6 +34,7 @@ final class CampaignOrchestrator
             publicationKey: $context->publicationKey,
             settings: $context->settings,
             runtime: new PortCampaignWorkflowState(),
+            definition: $context->definition,
         ), $this->adapter);
 
         return new CampaignRunResult(
