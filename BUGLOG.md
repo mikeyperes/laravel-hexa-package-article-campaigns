@@ -161,3 +161,30 @@ The Publish adapter invokes it before sanitizing and auditing a candidate.
 generative boundary. A revision may change prose and metadata, but it may
 neither omit nor invent inline media. Unit coverage includes omitted,
 substituted and newly invented images.
+
+---
+
+## CAMPAIGN-BUG-030 — Oversized complete source reached the writing boundary
+
+- **Severity:** High (a reserved campaign slot failed before generation)
+- **Status:** Patched 2026-09-19 12:14 EST in 1.1.4
+- **Owner:** also logged in laravel-hexa-app-publish
+
+**Impact.** Rich Reporter operation 6777 selected one 57,061-character annual
+celebrity-obituary roundup. Extraction accepted it, but the writer correctly
+refused the packet at its 50,000-character limit. No AI generation ran and the
+slot produced no article.
+
+**Root cause.** The complete-source safety limit existed only at the final
+prompt boundary. Discovery and replacement selection had no reusable packet
+budget policy, so they could declare an impossible source set ready.
+
+**Patch.** `CampaignSourcePacketBudgetPolicy` keeps complete primary sources in
+priority order up to the shared 50,000-character limit and reports every
+rejection. The Publish adapter applies it before generation and continues its
+existing bounded replacement discovery whenever too few sources remain.
+
+**Guard — do not remove.** Never clip a factual source to make it fit. Reject
+the complete source before paid generation, preserve the exact budget in this
+generic policy, and let the campaign's bounded replacement route find another
+publication-ready source.
