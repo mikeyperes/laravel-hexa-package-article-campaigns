@@ -200,8 +200,23 @@ final class ManifestCampaignDefinitionTest extends TestCase
                 'attempted' => true,
                 'resolved' => true,
                 'provider' => 'elementor_pro',
-                'post_count' => 6,
-                'result_limit' => 12,
+                'post_count' => 24,
+                'result_limit' => 50,
+            ],
+            'warnings' => [],
+        ];
+        $manifest['homepage']['query_widgets'][] = [
+            'elementor_id' => 'resolved-empty-query-builder-widget',
+            'widget_type' => 'jet-listing-grid',
+            'section' => 'Press Releases',
+            'categories' => [],
+            'category_source' => 'native_query_results',
+            'native_query' => [
+                'attempted' => true,
+                'resolved' => true,
+                'provider' => 'jet_engine_query_builder',
+                'post_count' => 10,
+                'result_limit' => 50,
             ],
             'warnings' => [],
         ];
@@ -211,7 +226,7 @@ final class ManifestCampaignDefinitionTest extends TestCase
         $this->assertSame([10], array_column($definition['categories'], 'id'));
         $this->assertSame('Business', $definition['categories'][0]['name']);
 
-        $manifest['homepage']['query_widgets'][1]['native_query']['resolved'] = false;
+        $manifest['homepage']['query_widgets'][2]['native_query']['resolved'] = false;
         try {
             $this->map($manifest);
             $this->fail('An unresolved empty-category widget must not be ignored.');

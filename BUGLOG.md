@@ -370,3 +370,32 @@ evidence. Reject legacy or unresolved empty widgets, unrecognized providers,
 warnings and invalid result bounds. Do not weaken partial-collection rejection,
 accept a missing or non-array `categories` field, or bypass the exact category-
 union and source-matching checks.
+
+---
+
+## CAMPAIGN-BUG-038 — Mapper rejected the released 50-result manifest contract
+
+- **Severity:** High (generic campaign setup was blocked after a valid complete manifest)
+- **Status:** Patched in 1.1.10 on 2026-09-19; focused regression passed and live campaign 78 retry is pending
+- **Code here:** `PublicationManifestMapper::isResolvedZeroCategoryWidget()`
+
+**Impact.** SEO My Company's SMP 2.0.15 manifest proved its 24-item homepage
+directory query complete with a 50-result bound and no warnings, but the generic
+mapper still allowed only the former 25-result ceiling. The same contract also
+did not recognize SMP's safely resolved `jet_engine_query_builder` provider.
+Setup stopped before any AI call.
+
+**Root cause.** The producer's bounded native-query contract evolved without the
+consumer's allow-list and maximum being advanced in the same release sequence.
+
+**Patch.** Accept result limits through 50 and add the exact
+`jet_engine_query_builder` provider. Preserve every existing warning-free,
+resolved, integer-bound, category-union, and per-category source requirement.
+The focused fixture covers both a 24-of-50 Elementor result and a warning-free
+Query Builder zero-category result, while retaining unresolved-provider
+rejection. The focused PHPUnit run passed with 1 test and 3 assertions.
+
+**Guard — do not remove.** Keep this consumer contract synchronized with SMP's
+released bounded providers. Never accept arbitrary provider names, limits over
+50, warnings, unresolved queries, malformed counts, or zero-category records as
+positive category evidence.

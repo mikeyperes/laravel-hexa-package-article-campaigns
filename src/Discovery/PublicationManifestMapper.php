@@ -19,9 +19,9 @@ final class PublicationManifestMapper
 
     private const MAXIMUM_CATEGORIES = 60;
 
-    private const MAXIMUM_NATIVE_QUERY_RESULTS = 25;
+    private const MAXIMUM_NATIVE_QUERY_RESULTS = 50;
 
-    private const NATIVE_QUERY_PROVIDERS = ['elementor_pro', 'jet_engine'];
+    private const NATIVE_QUERY_PROVIDERS = ['elementor_pro', 'jet_engine', 'jet_engine_query_builder'];
 
     private CampaignDefinitionCompiler $definitionCompiler;
 
