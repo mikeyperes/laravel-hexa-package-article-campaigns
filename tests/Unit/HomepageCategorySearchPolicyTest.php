@@ -98,4 +98,67 @@ class HomepageCategorySearchPolicyTest extends TestCase
             'description' => 'The ruling changes compliance obligations for companies.',
         ], ['publication_focus' => $focus]));
     }
+
+    public function test_complete_source_reclassifies_incidental_travel_phrase_to_dominant_politics_lane(): void
+    {
+        $policy = new CampaignSourceRelevancePolicy(new CampaignNegativeTopicMatcher());
+        $source = [[
+            'title' => 'California Withholds School Funds While Blowing Money on Pet Projects, Luxury Travel',
+            'text' => implode(' ', [
+                'The governor and Legislature withheld public school support in the state budget.',
+                'Legislators used the funds to close a deficit while a teachers union filed suit.',
+                'The state budget included local projects and public funds with little notice.',
+                'A separate inspector report found unallowable travel expenses by a state agency.',
+                'Political leaders faced criticism over government spending and public policy.',
+            ]),
+        ]];
+        $categories = [
+            ['name' => 'Travel', 'terms' => ['travel', 'tourism', 'airlines', 'hotels', 'destinations']],
+            ['name' => 'Politics', 'terms' => ['politics', 'election', 'government', 'legislation', 'Congress']],
+            ['name' => 'Luxury', 'terms' => ['luxury', 'luxury brands', 'yachts', 'luxury hotels', 'luxury cars']],
+        ];
+
+        $result = $policy->resolveHomepageCategory($source, [
+            'discovery_process' => \hexa_package_article_campaigns\Discovery\HomepageCategoryPoolDefinition::TYPE,
+            'forced_category' => 'Travel',
+            'homepage_pool' => ['categories' => $categories],
+        ]);
+
+        $this->assertTrue($result['reclassified']);
+        $this->assertSame('Politics', $result['resolved_category']);
+    }
+
+    public function test_complete_source_keeps_a_genuinely_dominant_travel_lane(): void
+    {
+        $search = new HomepageCategorySearchPolicy();
+        $result = $search->resolveDominantCategory([[
+            'title' => 'Luxury Hotels Add Airline Packages for Mediterranean Destinations',
+            'text' => str_repeat(
+                'Travel operators said tourism demand is lifting hotels, airlines, and beach destinations. ',
+                5,
+            ).'The governor briefly welcomed the new tourism campaign.',
+        ]], [
+            ['name' => 'Travel', 'terms' => $search->terms('Travel')],
+            ['name' => 'Politics', 'terms' => $search->terms('Politics')],
+        ], 'Travel');
+
+        $this->assertFalse($result['reclassified']);
+        $this->assertSame('Travel', $result['resolved_category']);
+    }
+
+    public function test_complete_source_preserves_a_generic_selected_section(): void
+    {
+        $search = new HomepageCategorySearchPolicy();
+        $result = $search->resolveDominantCategory([[
+            'title' => 'Governor Signs New State Budget',
+            'text' => str_repeat('The governor and Legislature approved government spending in the state budget. ', 4),
+        ]], [
+            ['name' => 'Trending', 'terms' => ['government', 'business', 'travel']],
+            ['name' => 'Politics', 'terms' => $search->terms('Politics')],
+        ], 'Trending');
+
+        $this->assertFalse($result['reclassified']);
+        $this->assertSame('Trending', $result['resolved_category']);
+        $this->assertSame('generic_category_preserved', $result['reason']);
+    }
 }

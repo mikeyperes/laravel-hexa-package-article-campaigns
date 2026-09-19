@@ -99,6 +99,34 @@ class CampaignSourceRelevancePolicy
     }
 
     /**
+     * Reconcile a preselected manifest category against complete extracted
+     * source text before generation. This never changes legacy discovery.
+     *
+     * @param  array<int, array<string, mixed>>  $sourceTexts
+     * @param  array<string, mixed>  $resolved
+     * @return array{selected_category:string,resolved_category:string,reclassified:bool,reason:string,scores:array<int,array<string,mixed>>}
+     */
+    public function resolveHomepageCategory(array $sourceTexts, array $resolved): array
+    {
+        $selected = trim((string) ($resolved['forced_category'] ?? ''));
+        if (($resolved['discovery_process'] ?? '') !== HomepageCategoryPoolDefinition::TYPE) {
+            return [
+                'selected_category' => $selected,
+                'resolved_category' => $selected,
+                'reclassified' => false,
+                'reason' => 'not_homepage_category_pool',
+                'scores' => [],
+            ];
+        }
+
+        return $this->homepageCategorySearchPolicy->resolveDominantCategory(
+            $sourceTexts,
+            (array) data_get($resolved, 'homepage_pool.categories', []),
+            $selected,
+        );
+    }
+
+    /**
      * Keep discovery queries aligned with mandatory source validation rules.
      *
      * Category rotation may select a narrower term that omits a campaign-wide

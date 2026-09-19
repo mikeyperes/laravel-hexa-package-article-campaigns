@@ -28,7 +28,14 @@ class HomepageCategorySearchPolicy
         'fashion' => ['fashion', 'designer', 'apparel', 'runway', 'fashion week'],
         'lifestyle' => ['lifestyle', 'wellness', 'food', 'home design', 'culture'],
         'luxury' => ['luxury', 'luxury brands', 'yachts', 'luxury hotels', 'luxury cars'],
-        'politics' => ['politics', 'election', 'government', 'legislation', 'Congress'],
+        // CAMPAIGN-BUG-031: keep the first five discovery terms stable, then add
+        // full-source signals that distinguish public-budget reporting from an
+        // incidental mention of travel, luxury, business, or another section.
+        'politics' => [
+            'politics', 'election', 'government', 'legislation', 'Congress',
+            'governor', 'legislature', 'legislator', 'lawmakers', 'public policy',
+            'state budget', 'government spending', 'public funds',
+        ],
         'real estate' => ['real estate', 'housing', 'property market', 'mortgage', 'commercial property'],
         'travel' => ['travel', 'tourism', 'airlines', 'hotels', 'destinations'],
         'technology' => ['technology', 'software', 'artificial intelligence', 'semiconductor', 'cybersecurity'],
@@ -322,6 +329,136 @@ class HomepageCategorySearchPolicy
             }
         }
         return false;
+    }
+
+    /**
+     * Resolve a clearly dominant specific category from complete extracted
+     * source text. Search snippets can contain one incidental lane phrase, so
+     * reassignment requires several distinct concepts and a decisive lead.
+     *
+     * @param  array<int, array<string, mixed>>  $sources
+     * @param  array<int, array<string, mixed>>  $categories
+     * @return array{selected_category:string,resolved_category:string,reclassified:bool,reason:string,scores:array<int,array<string,mixed>>}
+     */
+    public function resolveDominantCategory(array $sources, array $categories, string $selectedCategory): array
+    {
+        $selectedCategory = trim($selectedCategory);
+        $scores = [];
+
+        foreach ($categories as $category) {
+            $name = trim((string) ($category['name'] ?? ''));
+            if ($name === '') {
+                continue;
+            }
+
+            $terms = array_values(array_unique(array_filter(array_map(
+                static fn (mixed $term): string => trim((string) $term),
+                array_merge((array) ($category['terms'] ?? []), $this->terms($name)),
+            ))));
+            $evidence = $this->categoryEvidence($sources, $terms);
+            $scores[] = $evidence + [
+                'category' => $name,
+                'generic' => $this->generic($name),
+            ];
+        }
+
+        $selected = collect($scores)->first(
+            static fn (array $score): bool => strcasecmp((string) $score['category'], $selectedCategory) === 0,
+        );
+        $selected ??= [
+            'category' => $selectedCategory,
+            'score' => 0,
+            'distinct_terms' => 0,
+            'title_hits' => 0,
+            'body_hits' => 0,
+            'generic' => false,
+        ];
+
+        if ($selectedCategory === '' || ($selected['generic'] ?? false)) {
+            return [
+                'selected_category' => $selectedCategory,
+                'resolved_category' => $selectedCategory,
+                'reclassified' => false,
+                'reason' => $selectedCategory === '' ? 'no_selected_category' : 'generic_category_preserved',
+                'scores' => $scores,
+            ];
+        }
+
+        $ranked = collect($scores)
+            ->reject(static fn (array $score): bool => (bool) ($score['generic'] ?? false))
+            ->sortByDesc(static fn (array $score): array => [
+                (int) ($score['score'] ?? 0),
+                (int) ($score['distinct_terms'] ?? 0),
+                (int) ($score['title_hits'] ?? 0),
+            ])
+            ->values();
+        $winner = $ranked->first();
+        $winnerName = trim((string) ($winner['category'] ?? ''));
+        $selectedScore = (int) ($selected['score'] ?? 0);
+        $winnerScore = (int) ($winner['score'] ?? 0);
+        $winnerDistinct = (int) ($winner['distinct_terms'] ?? 0);
+        $decisive = $winnerName !== ''
+            && strcasecmp($winnerName, $selectedCategory) !== 0
+            && $winnerDistinct >= 3
+            && $winnerScore >= max(12, $selectedScore + 5)
+            && ($selectedScore === 0 || $winnerScore >= (int) ceil($selectedScore * 1.35));
+
+        return [
+            'selected_category' => $selectedCategory,
+            'resolved_category' => $decisive ? $winnerName : $selectedCategory,
+            'reclassified' => $decisive,
+            'reason' => $decisive ? 'dominant_complete_source_category' : 'selected_category_not_decisively_displaced',
+            'scores' => $scores,
+        ];
+    }
+
+    /**
+     * @param  array<int, array<string, mixed>>  $sources
+     * @param  array<int, string>  $terms
+     * @return array{score:int,distinct_terms:int,title_hits:int,body_hits:int,matched_terms:array<int,string>}
+     */
+    private function categoryEvidence(array $sources, array $terms): array
+    {
+        $titles = Str::lower(Str::ascii(strip_tags(implode(' ', array_map(
+            static fn (array $source): string => implode(' ', [
+                (string) ($source['title'] ?? ''),
+                (string) ($source['description'] ?? $source['snippet'] ?? ''),
+            ]),
+            $sources,
+        )))));
+        $bodies = Str::lower(Str::ascii(strip_tags(implode(' ', array_map(
+            static fn (array $source): string => (string) ($source['text'] ?? $source['content'] ?? ''),
+            $sources,
+        )))));
+        $titleHits = 0;
+        $bodyHits = 0;
+        $matched = [];
+
+        foreach ($terms as $term) {
+            $term = Str::lower(Str::ascii(trim($term)));
+            if ($term === '') {
+                continue;
+            }
+            $pattern = '/(?<![a-z0-9])'.preg_quote($term, '/').'(?:s|es)?(?![a-z0-9])/i';
+            $termTitleHits = preg_match_all($pattern, $titles);
+            $termBodyHits = preg_match_all($pattern, $bodies);
+            if ($termTitleHits + $termBodyHits === 0) {
+                continue;
+            }
+            $matched[] = $term;
+            $titleHits += $termTitleHits;
+            $bodyHits += $termBodyHits;
+        }
+
+        $distinctTerms = count(array_unique($matched));
+
+        return [
+            'score' => ($titleHits * 8) + min($bodyHits, 12) + (max(0, $distinctTerms - 1) * 4),
+            'distinct_terms' => $distinctTerms,
+            'title_hits' => $titleHits,
+            'body_hits' => $bodyHits,
+            'matched_terms' => array_values(array_unique($matched)),
+        ];
     }
 
     public function generic(string $name): bool

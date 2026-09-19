@@ -188,3 +188,33 @@ existing bounded replacement discovery whenever too few sources remain.
 the complete source before paid generation, preserve the exact budget in this
 generic policy, and let the campaign's bounded replacement route find another
 publication-ready source.
+
+---
+
+## CAMPAIGN-BUG-031 — Incidental phrase locked the wrong homepage category
+
+- **Severity:** High (wrong category and off-topic media reached a live post)
+- **Status:** Patched 2026-09-19 12:36 EST in 1.1.5
+- **Owner:** also logged in laravel-hexa-app-publish
+
+**Impact.** Rich Reporter article 7605 was locked to `Travel` because its
+source headline ended with “luxury travel,” although the complete article was
+about California school funding, the governor, the Legislature and the state
+budget. The generated post inherited Travel and selected an airplane image.
+
+**Root cause.** Category rotation locked the discovery lane before extraction.
+The complete-source relevance check only counted selected-lane mentions and
+never compared the extracted article with the publication's other specific
+manifest categories. Repeated incidental wording could therefore preserve the
+wrong lane even when another category clearly dominated the complete source.
+
+**Patch.** `HomepageCategorySearchPolicy` now scores complete extracted source
+text across every specific manifest category. Reclassification requires at
+least three distinct concepts and a decisive lead, while generic sections such
+as Trending remain stable. Politics keeps its original five query terms and
+adds full-source public-budget signals after them. `CampaignSourceRelevancePolicy`
+exposes the deterministic result to the Publish adapter before generation.
+
+**Guard — do not remove.** Compare complete source text before AI generation,
+require decisive multi-concept evidence, preserve generic selected sections,
+and never use one incidental phrase as proof that a category dominates.
