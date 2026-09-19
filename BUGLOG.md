@@ -132,3 +132,32 @@ terms and focus to every relevant category without site-specific configuration.
 `Business Law` distinct from the broad `business` vocabulary. Regression tests
 must include the rejected Law News Day economy headline and an accepted court
 or regulation headline.
+
+---
+
+## CAMPAIGN-BUG-023 — Paid refinement dropped reviewed inline images
+
+- **Severity:** High (paid refinement could never be accepted)
+- **Status:** Patched 2026-09-18 20:03:02 EST in 1.1.3
+- **Owner:** also logged in laravel-hexa-app-publish
+
+**Impact.** Law News Day article 7559 used one paid Haiku refinement pass to
+address semantic and metadata findings. The model returned revised prose but
+omitted both reviewed inline image figures. The publication audit correctly
+raised `inline_image_relevance`, rejected the candidate and preserved the live
+article, but the paid pass was consumed without a usable revision.
+
+**Root cause.** The revision prompt asked the model to preserve inline images,
+but the reusable flow treated that request as the only preservation mechanism.
+Model output therefore controlled media that had already been selected,
+reviewed and published.
+
+**Patch.** `Refinement/ArticleRevisionMediaPreserver` removes model-returned
+images and deterministically restores the exact reviewed figures, standalone
+images and photo placeholders at their approximate original body positions.
+The Publish adapter invokes it before sanitizing and auditing a candidate.
+
+**Guard — do not remove.** Existing reviewed media must stay outside the paid
+generative boundary. A revision may change prose and metadata, but it may
+neither omit nor invent inline media. Unit coverage includes omitted,
+substituted and newly invented images.
