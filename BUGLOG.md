@@ -338,3 +338,35 @@ manifest still stops before definition compilation or paid work.
 **Guard — do not remove.** Keep warning parsing aligned with the plugin's
 machine-readable schema. Never cast warning arrays to strings, discard their
 diagnostic code/context, or allow a partial collection to become runnable.
+
+---
+
+## CAMPAIGN-BUG-037 — Zero-category native widget invalidated a complete manifest
+
+- **Severity:** High (generic campaign setup was blocked for a valid publication)
+- **Status:** Released in 1.1.9 on 2026-09-19; pending live runtime activation
+- **Code here:** `PublicationManifestMapper::queryWidgetEvidence()`
+
+**Impact.** Block Editorial's complete SMP 2.0.11 manifest could not compile a
+campaign definition. Its homepage exposed all seven eligible categories with
+matched query-widget sources, but one additional Press Releases widget returned
+six posts with no public WordPress category terms. The scan stopped before any
+AI call with `an Elementor query widget is incomplete or incompatible`.
+
+**Root cause.** SMP deliberately records a successfully resolved native query
+even when its result contributes zero category terms. The mapper incorrectly
+required every individual query widget to contain a category instead of treating
+that record as zero evidence and validating the category union across all widgets.
+
+**Patch.** An empty `categories` array is accepted as zero evidence only when
+the widget records a warning-free, successfully resolved native Elementor Pro
+or JetEngine query with bounded result counts. It adds no IDs or sources. The
+existing nonempty homepage catalog, exact catalog-to-widget union, and per-
+category source checks still require complete evidence for every declared
+homepage category.
+
+**Guard — do not remove.** A zero-category widget never supplies campaign
+evidence. Reject legacy or unresolved empty widgets, unrecognized providers,
+warnings and invalid result bounds. Do not weaken partial-collection rejection,
+accept a missing or non-array `categories` field, or bypass the exact category-
+union and source-matching checks.

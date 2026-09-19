@@ -19,6 +19,10 @@ final class PublicationManifestMapper
 
     private const MAXIMUM_CATEGORIES = 60;
 
+    private const MAXIMUM_NATIVE_QUERY_RESULTS = 25;
+
+    private const NATIVE_QUERY_PROVIDERS = ['elementor_pro', 'jet_engine'];
+
     private CampaignDefinitionCompiler $definitionCompiler;
 
     public function __construct(
@@ -347,9 +351,20 @@ final class PublicationManifestMapper
             if ($elementorId === '' || ! preg_match('/^[a-z0-9_-]{1,100}$/i', $elementorId)
                 || $widgetType === '' || ! preg_match('/^[a-z0-9_-]{1,100}$/i', $widgetType)
                 || in_array(strtolower($widgetType), ['nav-menu', 'wp-widget-nav_menu'], true)
-                || ! is_array($widget['categories'] ?? null)
-                || $widget['categories'] === []) {
+                || ! is_array($widget['categories'] ?? null)) {
                 throw $this->failure('an Elementor query widget is incomplete or incompatible');
+            }
+
+            // CAMPAIGN-BUG-037: a resolved native query can validly return
+            // posts with no public category terms. It contributes no evidence;
+            // the catalog equality and per-category source checks still fail
+            // closed if any declared homepage category lacks widget evidence.
+            if ($widget['categories'] === []) {
+                if (! $this->isResolvedZeroCategoryWidget($widget)) {
+                    throw $this->failure('an Elementor query widget is incomplete or incompatible');
+                }
+
+                continue;
             }
 
             $widgetCategories = $this->categoryIndex($widget['categories'], $siteUrl, false);
@@ -360,6 +375,30 @@ final class PublicationManifestMapper
         }
 
         return ['category_ids' => array_values($categoryIds), 'sources' => $sources];
+    }
+
+    private function isResolvedZeroCategoryWidget(array $widget): bool
+    {
+        $nativeQuery = $widget['native_query'] ?? null;
+        $warnings = $widget['warnings'] ?? null;
+        if (! is_array($nativeQuery) || array_is_list($nativeQuery)
+            || ! is_array($warnings) || $warnings !== []
+            || ($widget['category_source'] ?? null) !== 'native_query_results'
+            || ($nativeQuery['attempted'] ?? null) !== true
+            || ($nativeQuery['resolved'] ?? null) !== true
+            || ! in_array($nativeQuery['provider'] ?? null, self::NATIVE_QUERY_PROVIDERS, true)) {
+            return false;
+        }
+
+        $postCount = $nativeQuery['post_count'] ?? null;
+        $resultLimit = $nativeQuery['result_limit'] ?? null;
+
+        return is_int($postCount)
+            && is_int($resultLimit)
+            && $postCount >= 0
+            && $resultLimit >= 1
+            && $resultLimit <= self::MAXIMUM_NATIVE_QUERY_RESULTS
+            && $postCount <= $resultLimit;
     }
 
     /** @return array<int, string> */

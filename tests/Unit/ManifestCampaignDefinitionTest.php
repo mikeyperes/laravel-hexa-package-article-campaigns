@@ -185,6 +185,44 @@ final class ManifestCampaignDefinitionTest extends TestCase
         $this->assertStringContainsString('No AI was called', (string) $calls->error);
     }
 
+    public function test_resolved_query_widget_without_category_terms_does_not_invalidate_other_evidence(): void
+    {
+        $manifest = $this->manifest([
+            $this->category(10, 'Business', 'business'),
+        ]);
+        $manifest['homepage']['query_widgets'][] = [
+            'elementor_id' => 'resolved-empty-widget',
+            'widget_type' => 'loop-grid',
+            'section' => 'Press Releases',
+            'categories' => [],
+            'category_source' => 'native_query_results',
+            'native_query' => [
+                'attempted' => true,
+                'resolved' => true,
+                'provider' => 'elementor_pro',
+                'post_count' => 6,
+                'result_limit' => 12,
+            ],
+            'warnings' => [],
+        ];
+
+        $definition = $this->map($manifest);
+
+        $this->assertSame([10], array_column($definition['categories'], 'id'));
+        $this->assertSame('Business', $definition['categories'][0]['name']);
+
+        $manifest['homepage']['query_widgets'][1]['native_query']['resolved'] = false;
+        try {
+            $this->map($manifest);
+            $this->fail('An unresolved empty-category widget must not be ignored.');
+        } catch (RuntimeException $exception) {
+            $this->assertStringContainsString(
+                'an Elementor query widget is incomplete or incompatible',
+                $exception->getMessage(),
+            );
+        }
+    }
+
     /** @param array<string, mixed> $editorial */
     private function map(array $manifest, array $editorial = []): array
     {
