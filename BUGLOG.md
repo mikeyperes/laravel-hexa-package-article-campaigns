@@ -312,3 +312,29 @@ legacy definitions retain their prior behavior until migration.
 **Guard — do not remove.** Preserve source priority, compare the full whitelist
 before selected-lane rejection, keep fixed manifest IDs, and reject every
 unrelated companion independently before any paid generation.
+
+---
+
+## CAMPAIGN-BUG-036 — Structured manifest warnings were rejected as malformed
+
+- **Severity:** High (valid SMP manifests could not reach actionable partial-scan reporting)
+- **Status:** Patched and released in 1.1.8 on 2026-09-19; pending coordinated deployment
+
+**Impact.** Rich Reporter compiled, but Her Forward, Block Editorial,
+Breaking 9 To 5 and Americas Gone Viral previews stopped with `manifest
+collection warnings are malformed` instead of reporting the actual incomplete
+Elementor query evidence. No paid generation ran.
+
+**Root cause.** The mapper accepted collection warnings only as strings. SMP
+Publication Integration 2.0.9 has always emitted machine-readable objects with
+`code`, `message`, widget/template provenance and structured `context`.
+
+**Patch.** The mapper now validates the producer's exact warning-object shape,
+bounds and sanitizes code/message/provenance/context, and includes up to three
+safe structured summaries in the partial-collection exception. Malformed
+objects still fail closed, and every genuine `collection_status=partial`
+manifest still stops before definition compilation or paid work.
+
+**Guard — do not remove.** Keep warning parsing aligned with the plugin's
+machine-readable schema. Never cast warning arrays to strings, discard their
+diagnostic code/context, or allow a partial collection to become runnable.

@@ -64,20 +64,17 @@ final class PublicationManifestMapper
         $meta = $this->requiredMap($manifest, 'meta');
 
         $collectionStatus = trim((string) ($homepage['collection_status'] ?? $manifest['collection_status'] ?? $meta['collection_status'] ?? 'complete'));
-        $collectionWarnings = $homepage['collection_warnings'] ?? $manifest['collection_warnings'] ?? $meta['collection_warnings'] ?? [];
-        if (! is_array($collectionWarnings)
-            || array_filter($collectionWarnings, static fn (mixed $warning): bool => ! is_string($warning)) !== []) {
-            throw $this->failure('the manifest collection warnings are malformed');
-        }
+        $collectionWarnings = $this->normalizeCollectionWarnings(
+            $homepage['collection_warnings'] ?? $manifest['collection_warnings'] ?? $meta['collection_warnings'] ?? [],
+        );
         if (! in_array($collectionStatus, ['complete', 'partial'], true)) {
             throw $this->failure('the manifest collection status is invalid');
         }
         if ($collectionStatus === 'partial') {
-            $warnings = array_filter(array_map(
-                static fn (string $value): string => trim(preg_replace('/[\x00-\x1F\x7F]/u', ' ', $value) ?? ''),
+            $warning = trim(implode('; ', array_slice(array_map(
+                fn (array $value): string => $this->collectionWarningSummary($value),
                 $collectionWarnings,
-            ));
-            $warning = trim(implode('; ', array_slice($warnings, 0, 3)));
+            ), 0, 3)));
             throw $this->failure('the Elementor homepage collection is partial'.($warning !== '' ? ' ('.$warning.')' : ''));
         }
 
@@ -483,6 +480,134 @@ final class PublicationManifestMapper
         }
 
         return $host.':'.$port;
+    }
+
+    /**
+     * Validate the machine-readable warning objects emitted by SMP 2.0.9+.
+     * Diagnostic data stays bounded before it is included in an exception.
+     *
+     * @return array<int, array<string, mixed>>
+     */
+    private function normalizeCollectionWarnings(mixed $warnings): array
+    {
+        if (! is_array($warnings) || ! array_is_list($warnings) || count($warnings) > 100) {
+            throw $this->failure('the manifest collection warnings are malformed');
+        }
+
+        $normalized = [];
+        foreach ($warnings as $warning) {
+            if (! is_array($warning) || array_is_list($warning)) {
+                throw $this->failure('the manifest collection warnings are malformed');
+            }
+
+            $code = trim((string) ($warning['code'] ?? ''));
+            $message = $this->boundedWarningText($warning['message'] ?? null, 500);
+            $elementorId = $this->boundedWarningKey($warning['elementor_id'] ?? '', 100);
+            $widgetType = $this->boundedWarningKey($warning['widget_type'] ?? '', 100);
+            $templateId = $warning['template_id'] ?? 0;
+            $templateChain = $warning['template_chain'] ?? [];
+            $context = $warning['context'] ?? [];
+
+            if (preg_match('/^[a-z0-9_-]{1,100}$/', $code) !== 1
+                || $message === ''
+                || ! is_int($templateId) || $templateId < 0
+                || ! is_array($templateChain) || ! array_is_list($templateChain) || count($templateChain) > 32
+                || array_filter($templateChain, static fn (mixed $id): bool => ! is_int($id) || $id < 1) !== []
+                || ! is_array($context)) {
+                throw $this->failure('the manifest collection warnings are malformed');
+            }
+
+            $remainingContextItems = 50;
+            $normalized[] = [
+                'code' => $code,
+                'message' => $message,
+                'elementor_id' => $elementorId,
+                'widget_type' => $widgetType,
+                'template_id' => $templateId,
+                'template_chain' => array_values($templateChain),
+                'context' => $this->normalizeWarningContext($context, 0, $remainingContextItems),
+            ];
+        }
+
+        return $normalized;
+    }
+
+    private function collectionWarningSummary(array $warning): string
+    {
+        $context = (array) ($warning['context'] ?? []);
+        foreach (['elementor_id', 'widget_type', 'template_id'] as $field) {
+            $value = $warning[$field] ?? null;
+            if ($value !== null && $value !== '' && $value !== 0) {
+                $context[$field] = $value;
+            }
+        }
+        $contextJson = $context === [] ? '' : json_encode($context, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
+        if (! is_string($contextJson)) {
+            $contextJson = '';
+        }
+        $contextJson = mb_substr($contextJson, 0, 500);
+
+        return (string) $warning['code'].': '.(string) $warning['message']
+            .($contextJson !== '' ? ' '.$contextJson : '');
+    }
+
+    private function boundedWarningText(mixed $value, int $limit): string
+    {
+        if (! is_string($value)) {
+            return '';
+        }
+
+        $value = strip_tags($value);
+        $value = preg_replace('/[\x00-\x1F\x7F]/u', ' ', $value) ?? '';
+        $value = trim(preg_replace('/\s+/u', ' ', $value) ?? '');
+
+        return mb_substr($value, 0, $limit);
+    }
+
+    private function boundedWarningKey(mixed $value, int $limit): string
+    {
+        if ($value === null || $value === '') {
+            return '';
+        }
+        if (! is_string($value)) {
+            throw $this->failure('the manifest collection warnings are malformed');
+        }
+
+        $value = trim($value);
+        if ($value === '' || mb_strlen($value) > $limit || preg_match('/^[a-z0-9_-]+$/i', $value) !== 1) {
+            throw $this->failure('the manifest collection warnings are malformed');
+        }
+
+        return $value;
+    }
+
+    private function normalizeWarningContext(array $context, int $depth, int &$remainingItems): array
+    {
+        if ($depth > 3 || count($context) > 20) {
+            throw $this->failure('the manifest collection warnings are malformed');
+        }
+
+        $normalized = [];
+        foreach ($context as $key => $value) {
+            if (--$remainingItems < 0) {
+                throw $this->failure('the manifest collection warnings are malformed');
+            }
+            if (! is_int($key)
+                && (! is_string($key) || preg_match('/^[a-z0-9_.-]{1,64}$/i', $key) !== 1)) {
+                throw $this->failure('the manifest collection warnings are malformed');
+            }
+            if (is_array($value)) {
+                $normalized[$key] = $this->normalizeWarningContext($value, $depth + 1, $remainingItems);
+            } elseif (is_string($value)) {
+                $normalized[$key] = $this->boundedWarningText($value, 200);
+            } elseif (is_int($value) || is_float($value) || is_bool($value) || $value === null) {
+                $normalized[$key] = $value;
+            } else {
+                throw $this->failure('the manifest collection warnings are malformed');
+            }
+        }
+
+        return $normalized;
     }
 
     private function failure(string $reason): RuntimeException

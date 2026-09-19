@@ -110,7 +110,24 @@ final class ManifestCampaignDefinitionTest extends TestCase
     {
         $manifest = $this->manifest([$this->category(10, 'Business', 'business')]);
         $manifest['homepage']['collection_status'] = 'partial';
-        $manifest['homepage']['collection_warnings'] = ['Elementor widget widget-10 could not be resolved'];
+        // Exact SMP Publication Integration 2.0.9 warning-object schema.
+        $manifest['homepage']['collection_warnings'] = [[
+            'code' => 'query_scope_not_statically_resolved',
+            'message' => 'No positive category restriction could be resolved from this query widget; runtime results may contain additional categories.',
+            'elementor_id' => '50e0f07',
+            'widget_type' => 'loop-grid',
+            'template_id' => 0,
+            'template_chain' => [],
+            'context' => [],
+        ], [
+            'code' => 'unsupported_taxonomy_operator',
+            'message' => 'A taxonomy clause uses an operator the manifest collector cannot interpret.',
+            'elementor_id' => 'unsupported-operator',
+            'widget_type' => 'posts',
+            'template_id' => 0,
+            'template_chain' => [],
+            'context' => ['taxonomy' => 'category', 'operator' => 'XOR'],
+        ]];
         $manifest = $this->fingerprint($manifest);
         $calls = (object) ['generation' => 0, 'delivery' => 0, 'error' => null];
         $mapper = $this->mapper();
@@ -162,6 +179,9 @@ final class ManifestCampaignDefinitionTest extends TestCase
         $this->assertSame(0, $calls->generation);
         $this->assertSame(0, $calls->delivery);
         $this->assertStringContainsString('collection is partial', (string) $calls->error);
+        $this->assertStringContainsString('query_scope_not_statically_resolved', (string) $calls->error);
+        $this->assertStringContainsString('"widget_type":"loop-grid"', (string) $calls->error);
+        $this->assertStringContainsString('"operator":"XOR"', (string) $calls->error);
         $this->assertStringContainsString('No AI was called', (string) $calls->error);
     }
 
