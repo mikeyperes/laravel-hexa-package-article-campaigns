@@ -126,6 +126,14 @@ class HomepageCategorySearchPolicyTest extends TestCase
 
         $this->assertTrue($result['reclassified']);
         $this->assertSame('Politics', $result['resolved_category']);
+
+        $resolved = $policy->resolveHomepageCategory($source, [
+            'discovery_process' => \hexa_package_article_campaigns\Discovery\HomepageCategoryPoolDefinition::TYPE,
+            'forced_category' => 'Politics',
+            'homepage_pool' => ['categories' => $categories],
+        ]);
+        $this->assertFalse($resolved['reclassified']);
+        $this->assertTrue($resolved['selected_category_supported']);
     }
 
     public function test_complete_source_keeps_a_genuinely_dominant_travel_lane(): void
@@ -144,6 +152,7 @@ class HomepageCategorySearchPolicyTest extends TestCase
 
         $this->assertFalse($result['reclassified']);
         $this->assertSame('Travel', $result['resolved_category']);
+        $this->assertTrue($result['selected_category_supported']);
     }
 
     public function test_complete_source_preserves_a_generic_selected_section(): void
@@ -159,6 +168,7 @@ class HomepageCategorySearchPolicyTest extends TestCase
 
         $this->assertFalse($result['reclassified']);
         $this->assertSame('Trending', $result['resolved_category']);
+        $this->assertFalse($result['selected_category_supported']);
         $this->assertSame('generic_category_preserved', $result['reason']);
     }
 }

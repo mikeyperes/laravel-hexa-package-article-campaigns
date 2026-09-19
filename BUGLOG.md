@@ -218,3 +218,37 @@ exposes the deterministic result to the Publish adapter before generation.
 **Guard — do not remove.** Compare complete source text before AI generation,
 require decisive multi-concept evidence, preserve generic selected sections,
 and never use one incidental phrase as proof that a category dominates.
+
+---
+
+## CAMPAIGN-BUG-032 — Saved-article audit rejected the reconciled homepage category
+
+- **Severity:** High (the supported no-AI correction route could not repair the live post)
+- **Status:** Patched 2026-09-19 12:51 EST in 1.1.6
+- **Owner:** also logged in laravel-hexa-app-publish
+
+**Impact.** Rich Reporter article 7605 was correctly reclassified from its
+incidental discovery lane to the dominant complete-source category before the
+correction was retried. The saved-article publication audit nevertheless used
+the older literal lane-term matcher and rejected that same category, leaving
+the wrong live taxonomy and image in place.
+
+**Root cause.** The complete-source resolver returned only whether a different
+category decisively displaced the selected one. A recovery audit no longer has
+the discarded pre-extraction category, so it could not prove that its stored
+specific category was already the strongly supported winner.
+
+**Patch.** `HomepageCategorySearchPolicy::resolveDominantCategory()` now also
+reports `selected_category_supported` when the selected specific category is
+the highest-scoring lane across all eligible categories with the same minimum
+score and distinct-concept evidence required by reclassification. The shared
+source policy combines current generic vocabulary with saved manifest terms so
+every attached source is evaluated independently with the same category
+meaning. Generic sections remain unsupported by this signal and keep their
+separate lane policy.
+
+**Guard — do not remove.** Generation and saved-article recovery must consume
+the same complete-source category evidence. Compare all eligible categories,
+preserve per-source relevance, do not duplicate thresholds in an adapter, treat
+a generic section as a dominant subject, or accept a stored specific category
+that is not the supported winner.

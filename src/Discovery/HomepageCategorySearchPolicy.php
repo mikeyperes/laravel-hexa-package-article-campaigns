@@ -338,7 +338,7 @@ class HomepageCategorySearchPolicy
      *
      * @param  array<int, array<string, mixed>>  $sources
      * @param  array<int, array<string, mixed>>  $categories
-     * @return array{selected_category:string,resolved_category:string,reclassified:bool,reason:string,scores:array<int,array<string,mixed>>}
+     * @return array{selected_category:string,resolved_category:string,selected_category_supported:bool,reclassified:bool,reason:string,scores:array<int,array<string,mixed>>}
      */
     public function resolveDominantCategory(array $sources, array $categories, string $selectedCategory): array
     {
@@ -378,6 +378,7 @@ class HomepageCategorySearchPolicy
             return [
                 'selected_category' => $selectedCategory,
                 'resolved_category' => $selectedCategory,
+                'selected_category_supported' => false,
                 'reclassified' => false,
                 'reason' => $selectedCategory === '' ? 'no_selected_category' : 'generic_category_preserved',
                 'scores' => $scores,
@@ -397,6 +398,14 @@ class HomepageCategorySearchPolicy
         $selectedScore = (int) ($selected['score'] ?? 0);
         $winnerScore = (int) ($winner['score'] ?? 0);
         $winnerDistinct = (int) ($winner['distinct_terms'] ?? 0);
+        // CRITICAL — see BUGLOG.md CAMPAIGN-BUG-032. Saved-article audits no
+        // longer retain the pre-extraction lane. Expose whether the stored
+        // specific category is itself the strongly supported winner so every
+        // adapter can validate it with the same complete-source classifier.
+        $selectedSupported = $winnerName !== ''
+            && strcasecmp($winnerName, $selectedCategory) === 0
+            && $winnerDistinct >= 3
+            && $winnerScore >= 12;
         $decisive = $winnerName !== ''
             && strcasecmp($winnerName, $selectedCategory) !== 0
             && $winnerDistinct >= 3
@@ -406,6 +415,7 @@ class HomepageCategorySearchPolicy
         return [
             'selected_category' => $selectedCategory,
             'resolved_category' => $decisive ? $winnerName : $selectedCategory,
+            'selected_category_supported' => $selectedSupported,
             'reclassified' => $decisive,
             'reason' => $decisive ? 'dominant_complete_source_category' : 'selected_category_not_decisively_displaced',
             'scores' => $scores,

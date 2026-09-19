@@ -73,7 +73,15 @@ class CampaignSourceRelevancePolicy
             $terms = [];
             foreach ((array) data_get($resolved, 'homepage_pool.categories', []) as $lane) {
                 if ($category === '' || strcasecmp($category, (string) $lane['name']) === 0) {
-                    $terms = array_merge($terms, (array) $lane['terms']);
+                    // The saved manifest terms may predate the current shared
+                    // vocabulary. Use both surfaces so extraction, generation
+                    // and saved-article recovery interpret a category with the
+                    // same generic policy.
+                    $terms = array_merge(
+                        $terms,
+                        (array) ($lane['terms'] ?? []),
+                        $this->homepageCategorySearchPolicy->terms((string) ($lane['name'] ?? '')),
+                    );
                 }
             }
             $searchPolicy = $this->homepageCategorySearchPolicy;
@@ -104,7 +112,7 @@ class CampaignSourceRelevancePolicy
      *
      * @param  array<int, array<string, mixed>>  $sourceTexts
      * @param  array<string, mixed>  $resolved
-     * @return array{selected_category:string,resolved_category:string,reclassified:bool,reason:string,scores:array<int,array<string,mixed>>}
+     * @return array{selected_category:string,resolved_category:string,selected_category_supported:bool,reclassified:bool,reason:string,scores:array<int,array<string,mixed>>}
      */
     public function resolveHomepageCategory(array $sourceTexts, array $resolved): array
     {
@@ -113,6 +121,7 @@ class CampaignSourceRelevancePolicy
             return [
                 'selected_category' => $selected,
                 'resolved_category' => $selected,
+                'selected_category_supported' => false,
                 'reclassified' => false,
                 'reason' => 'not_homepage_category_pool',
                 'scores' => [],
