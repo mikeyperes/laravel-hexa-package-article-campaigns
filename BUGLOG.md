@@ -61,6 +61,14 @@ involve this generic engine. Bug IDs are shared with the Publish app log, so
   article content, store raw agent session identifiers, or label an
   agent-triggered run as site-native.
 
+**Detailed timing follow-up — 2026-09-20 02:00 EST.** The four lifecycle stages
+still hid expensive provider, media and WordPress work inside broad totals.
+`CampaignRunTimingReport` now groups application-owned leaf timers into durable
+sections, reports the ten slowest tasks, and exposes measured, unmeasured and
+overlapping time. Keep application-specific task names in the adapter; the
+generic package accepts explicit timing events and contains no Publish or site
+logic.
+
 ---
 
 ## CAMPAIGN-BUG-043 — Revision redelivery erased saved WordPress tags

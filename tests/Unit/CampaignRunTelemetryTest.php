@@ -9,6 +9,7 @@ use hexa_package_article_campaigns\Data\CampaignWorkflowState;
 use hexa_package_article_campaigns\Orchestration\CampaignWorkflowOrchestrator;
 use hexa_package_article_campaigns\State\CampaignRunStateMachine;
 use hexa_package_article_campaigns\Telemetry\CampaignRunProvenance;
+use hexa_package_article_campaigns\Telemetry\CampaignRunTimingReport;
 use PHPUnit\Framework\TestCase;
 
 final class CampaignRunTelemetryTest extends TestCase
@@ -69,5 +70,32 @@ final class CampaignRunTelemetryTest extends TestCase
 
         $record['origin'] = 'claude';
         $this->assertFalse($provenance->verify($record, 'application-signing-key'));
+    }
+
+    public function test_leaf_task_report_groups_sections_and_exposes_slowest_work(): void
+    {
+        $report = (new CampaignRunTimingReport)->summarize([
+            [
+                'timing_section' => 'source_acquisition',
+                'timing_task' => 'initial_discovery',
+                'duration_ms' => 15000,
+                'started_at' => '2026-09-20T04:22:06+00:00',
+                'completed_at' => '2026-09-20T04:22:21+00:00',
+                'type' => 'success',
+            ],
+            [
+                'timing_section' => 'wordpress_preparation',
+                'timing_task' => 'inline_media_upload',
+                'duration_ms' => 20000,
+                'started_at' => '2026-09-20T04:23:05+00:00',
+                'completed_at' => '2026-09-20T04:23:25+00:00',
+                'type' => 'success',
+            ],
+        ], 60000);
+
+        $this->assertSame(35000, $report['measured_duration_ms']);
+        $this->assertSame(25000, $report['unmeasured_duration_ms']);
+        $this->assertSame('inline_media_upload', $report['slowest_tasks'][0]['task']);
+        $this->assertSame(['source_acquisition', 'wordpress_preparation'], array_column($report['sections'], 'section'));
     }
 }
