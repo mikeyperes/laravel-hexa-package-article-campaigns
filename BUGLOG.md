@@ -66,6 +66,27 @@ involve this generic engine. Bug IDs are shared with the Publish app log, so
 
 ---
 
+## CAMPAIGN-BUG-059 — Official announcements lacked literal release labels
+
+- **Severity:** High
+- **Status:** Patched 2026-09-20 04:39:44 EST in 1.1.23.
+- **Impact:** Contextual Press Releases searches returned current first-party
+  announcements, but the format gate rejected them when their title said
+  `announces`, `launches` or `unveils` and their page omitted the literal phrase
+  `press release`. A valid lane therefore exhausted 106 candidates before AI.
+- **Root cause:** Release-format vocabulary modeled document labels but not the
+  normal announcement verbs used by first-party release headlines.
+- **Patch:** The reusable format vocabulary now recognizes explicit
+  announcement verbs while preserving publication subjects in the separate
+  `context_terms` requirement. These signals never become publication topics or
+  standalone queries.
+- **Guard:** A current first-party headline that announces a crypto development
+  can satisfy release format, but an unrelated announcement still fails the
+  publication-subject requirement and ordinary topical news still fails the
+  format requirement.
+
+---
+
 ## CAMPAIGN-BUG-054 — Manifest delivery capabilities were discarded
 
 - **Severity:** High

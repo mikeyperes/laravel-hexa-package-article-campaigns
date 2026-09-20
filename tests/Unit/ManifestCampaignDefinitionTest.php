@@ -161,9 +161,9 @@ final class ManifestCampaignDefinitionTest extends TestCase
         ];
         $policy = new CampaignSourceRelevancePolicy(new CampaignNegativeTopicMatcher());
         $release = [
-            'title' => 'Company Publishes News Release for New Bitcoin Custody Platform',
-            'url' => 'https://wire.test/press-releases/bitcoin-custody-platform',
-            'text' => str_repeat('The press release describes a bitcoin custody platform built on blockchain technology for digital assets. ', 4),
+            'title' => 'Company Announces New Bitcoin Custody Platform',
+            'url' => 'https://company.test/news/bitcoin-custody-platform',
+            'text' => str_repeat('The company announced a bitcoin custody platform built on blockchain technology for digital assets. ', 4),
         ];
         $unrelatedRelease = [
             'title' => 'Team Publishes News Release for New Basketball Arena',
