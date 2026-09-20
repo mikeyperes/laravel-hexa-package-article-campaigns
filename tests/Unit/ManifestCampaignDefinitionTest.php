@@ -34,6 +34,38 @@ final class ManifestCampaignDefinitionTest extends TestCase
         $this->assertNotEmpty($definition['categories'][0]['queries']);
     }
 
+    public function test_ambiguous_child_category_uses_parent_url_subject_instead_of_literal_brand_matching(): void
+    {
+        $category = $this->category(72, 'Plugged In', 'plugged-in');
+        $category['url'] = 'https://publication.test/category/podcasts/plugged-in/';
+        $definition = $this->map($this->manifest([$category]));
+        $lane = $definition['categories'][0];
+
+        $this->assertSame('parent_category_path', $lane['semantic_context']['source']);
+        $this->assertSame('podcasts', $lane['semantic_context']['subject']);
+        $this->assertContains('podcast interview', $lane['terms']);
+        $this->assertNotContains('plugged in', $lane['terms']);
+        $this->assertStringNotContainsString('plugged', strtolower(implode(' ', $lane['queries'])));
+
+        $search = new HomepageCategorySearchPolicy();
+        $this->assertFalse($search->matches([
+            'title' => 'Plugged In Golf Reviews a New Shoe',
+            'url' => 'https://pluggedingolf.example/review',
+            'text' => str_repeat('Plugged In Golf reviewed the golf shoe and its traction. ', 5),
+        ], $lane['terms']));
+    }
+
+    public function test_ambiguous_category_without_semantic_context_stops_before_ai(): void
+    {
+        try {
+            $this->map($this->manifest([$this->category(72, 'Plugged In', 'plugged-in')]));
+            $this->fail('An ambiguous literal label must not compile without semantic context.');
+        } catch (RuntimeException $exception) {
+            $this->assertStringContainsString('lacks manifest-derived semantic context', $exception->getMessage());
+            $this->assertStringContainsString('No AI was called', $exception->getMessage());
+        }
+    }
+
     public function test_broad_publication_gets_no_mandatory_niche_focus_but_first_party_specialist_identity_does(): void
     {
         $categories = [
@@ -73,6 +105,12 @@ final class ManifestCampaignDefinitionTest extends TestCase
         $legacy['version'] = 1;
         $this->assertTrue(HomepageCategoryPoolDefinition::isUsableManifestDefinition($legacy));
         $this->assertFalse(HomepageCategoryPoolDefinition::isCurrentManifestDefinition($legacy));
+
+        $oldVersioned = $definition;
+        $oldVersioned['definition_version'] = 2;
+        $oldVersioned['policy_version'] = 'manifest-homepage-v2';
+        unset($oldVersioned['categories'][0]['semantic_context']);
+        $this->assertFalse(HomepageCategoryPoolDefinition::isUsableManifestDefinition($oldVersioned));
     }
 
     public function test_complete_source_is_reclassified_before_lane_rejection_and_unrelated_companion_is_removed(): void

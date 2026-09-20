@@ -14,9 +14,9 @@ use JsonException;
  */
 final readonly class CampaignDefinition
 {
-    public const DEFINITION_VERSION = 2;
+    public const DEFINITION_VERSION = 3;
 
-    public const POLICY_VERSION = 'manifest-homepage-v2';
+    public const POLICY_VERSION = 'manifest-homepage-v3';
 
     /**
      * @param array<string, mixed> $taxonomyCapabilities
@@ -180,6 +180,13 @@ final readonly class CampaignDefinition
             $id = is_array($category) ? ($category['id'] ?? null) : null;
             if (! is_int($id) || $id < 1 || isset($ids[$id])
                 || trim((string) ($category['name'] ?? '')) === ''
+                || ! is_array($category['semantic_context'] ?? null)
+                || ! in_array(($category['semantic_context']['source'] ?? null), [
+                    'category_vocabulary',
+                    'parent_category_path',
+                    'manifest_evidence',
+                ], true)
+                || trim((string) ($category['semantic_context']['subject'] ?? '')) === ''
                 || ! is_array($category['terms'] ?? null) || $category['terms'] === []
                 || ! is_array($category['queries'] ?? null) || $category['queries'] === []) {
                 throw new InvalidArgumentException('Campaign definition contains an invalid category lane.');

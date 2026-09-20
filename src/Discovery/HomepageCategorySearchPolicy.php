@@ -21,7 +21,64 @@ class HomepageCategorySearchPolicy
 
     public function isKnownCategoryName(string $name): bool
     {
-        return isset($this->vocabulary()[$this->categoryKey($name)]);
+        return $this->knownTerms($name) !== [];
+    }
+
+    /** @return array<int, string> */
+    public function knownTerms(string $category): array
+    {
+        $key = $this->categoryKey($category);
+        $vocabulary = $this->vocabulary();
+        $aliases = (array) ($this->semantics['aliases'] ?? []);
+        foreach (array_values(array_unique([$key, Str::singular($key)])) as $candidate) {
+            $candidate = $aliases[$candidate] ?? $candidate;
+            if (isset($vocabulary[$candidate])) {
+                return array_values($vocabulary[$candidate]);
+            }
+        }
+
+        $key = str_replace('-', ' ', $key);
+        if (isset($vocabulary[$key])) {
+            return array_values($vocabulary[$key]);
+        }
+        foreach ($vocabulary as $terms) {
+            if (Str::lower($terms[0]) === $key) {
+                return array_values($terms);
+            }
+        }
+
+        return [];
+    }
+
+    /**
+     * Resolve the nearest known parent subject embedded in a WordPress
+     * category URL, for example `/category/podcasts/plugged-in/`.
+     *
+     * @return array{subject:string,terms:array<int,string>}|null
+     */
+    public function parentPathContext(string $categoryUrl, string $leafSlug): ?array
+    {
+        $path = (string) (parse_url(trim($categoryUrl), PHP_URL_PATH) ?? '');
+        $segments = array_values(array_filter(array_map(
+            static fn (string $segment): string => trim(str_replace('-', ' ', rawurldecode($segment))),
+            explode('/', trim($path, '/')),
+        )));
+        $leaf = $this->categoryKey(str_replace('-', ' ', $leafSlug));
+        $structural = ['category', 'categories', 'topic', 'topics', 'section', 'sections'];
+
+        for ($index = count($segments) - 1; $index >= 0; $index--) {
+            $subject = $segments[$index];
+            $key = $this->categoryKey($subject);
+            if ($key === '' || $key === $leaf || in_array($key, $structural, true)) {
+                continue;
+            }
+            $terms = $this->knownTerms($subject);
+            if ($terms !== []) {
+                return ['subject' => $subject, 'terms' => $terms];
+            }
+        }
+
+        return null;
     }
 
     public function publicationFocus(string $identity): ?array
@@ -82,24 +139,13 @@ class HomepageCategorySearchPolicy
      */
     public function termsForEvidence(string $category, string $description = '', array $sections = [], string $slug = ''): array
     {
-        $key = $this->categoryKey($category);
+        $known = $this->knownTerms($category);
+        if ($known !== []) {
+            return $known;
+        }
+
+        $key = str_replace('-', ' ', $this->categoryKey($category));
         $vocabulary = $this->vocabulary();
-        $aliases = (array) ($this->semantics['aliases'] ?? []);
-        foreach (array_values(array_unique([$key, Str::singular($key)])) as $candidate) {
-            $candidate = $aliases[$candidate] ?? $candidate;
-            if (isset($vocabulary[$candidate])) {
-                return array_values($vocabulary[$candidate]);
-            }
-        }
-        $key = str_replace('-', ' ', $key);
-        if (isset($vocabulary[$key])) {
-            return array_values($vocabulary[$key]);
-        }
-        foreach ($vocabulary as $terms) {
-            if (Str::lower($terms[0]) === $key) {
-                return array_values($terms);
-            }
-        }
 
         $expanded = [];
         foreach ($vocabulary as $subject => $terms) {

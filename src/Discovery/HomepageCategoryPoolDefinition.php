@@ -49,8 +49,10 @@ class HomepageCategoryPoolDefinition
 
     public static function isUsableManifestDefinition(array $definition): bool
     {
-        if (array_key_exists('definition_version', $definition)
-            && (int) $definition['definition_version'] >= CampaignDefinition::DEFINITION_VERSION) {
+        // Every versioned definition must pass the current schema. Falling an
+        // older version through the legacy branch can revive unsafe compiled
+        // queries after category semantics change.
+        if (array_key_exists('definition_version', $definition)) {
             return self::isCurrentManifestDefinition($definition);
         }
 

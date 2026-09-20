@@ -20,6 +20,29 @@ involve this generic engine. Bug IDs are shared with the Publish app log, so
 
 ---
 
+## CAMPAIGN-BUG-048 — Ambiguous category labels matched unrelated brands and domains
+
+- **Severity:** High
+- **Status:** Patched 2026-09-20 02:25 EST in 1.1.15.
+- **Impact:** A homepage lane named `Plugged In` compiled literal `plugged in`
+  queries. Discovery rejected one short relevant source, then selected an
+  unrelated golf site whose brand/domain contained the same phrase and paid for
+  a draft that the publication-fit gate later rejected.
+- **Root cause:** Category compilation ignored the trusted parent context in the
+  WordPress category URL and treated an otherwise unsupported label as its own
+  editorial subject. Old versioned definitions could also fall through the
+  legacy compatibility path.
+- **Patch:** Unknown child labels now inherit the nearest recognized parent
+  category subject from their manifest URL. Literal child names do not become
+  query or relevance terms in that case. Unknown labels with no known parent,
+  description, or distinct Elementor section fail before AI. Definition schema
+  v3 stores the semantic-context source, and every versioned definition must
+  validate against the current schema.
+- **Guard:** The regression fixture compiles
+  `/category/podcasts/plugged-in/` into podcast terms, rejects a Plugged In Golf
+  source, rejects an uncontextualized `Plugged In` lane before AI, and rejects
+  the old v2 definition as usable.
+
 ## CAMPAIGN-BUG-047 — Explicit article audience was dropped from media selection
 
 - **Severity:** High

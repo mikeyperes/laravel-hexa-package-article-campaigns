@@ -73,9 +73,10 @@ final class CampaignDefinitionCompiler
 
         foreach ($categories as &$category) {
             $name = trim((string) ($category['name'] ?? ''));
+            $subject = $this->categorySubject($category);
             $terms = $this->searchPolicy->generic($name)
                 ? array_slice($specific, 0, 15)
-                : $this->categoryTerms($category);
+                : $subject['terms'];
             $terms = array_values(array_unique(array_filter(array_map(
                 static fn (mixed $term): string => trim((string) $term),
                 $terms,
@@ -85,6 +86,9 @@ final class CampaignDefinitionCompiler
             }
 
             $category['terms'] = $terms;
+            $category['semantic_context'] = $this->searchPolicy->generic($name)
+                ? ['source' => 'manifest_evidence', 'subject' => $name]
+                : $subject['context'];
             $category['content_mode'] = $this->searchPolicy->contentMode($name);
             $suffix = $category['content_mode'] === 'evergreen' ? ' guide' : ' news';
             $category['queries'] = array_map(
@@ -125,5 +129,58 @@ final class CampaignDefinitionCompiler
             $sections,
             (string) ($category['slug'] ?? ''),
         );
+    }
+
+    /**
+     * @param array<string, mixed> $category
+     * @return array{terms:array<int,string>,context:array{source:string,subject:string}}
+     */
+    private function categorySubject(array $category): array
+    {
+        $name = trim((string) ($category['name'] ?? ''));
+        $knownTerms = $this->searchPolicy->knownTerms($name);
+        if ($knownTerms !== []) {
+            return [
+                'terms' => $knownTerms,
+                'context' => ['source' => 'category_vocabulary', 'subject' => $name],
+            ];
+        }
+
+        $parent = $this->searchPolicy->parentPathContext(
+            (string) ($category['homepage_link'] ?? ''),
+            (string) ($category['slug'] ?? ''),
+        );
+        if ($parent !== null) {
+            return [
+                'terms' => $parent['terms'],
+                'context' => ['source' => 'parent_category_path', 'subject' => $parent['subject']],
+            ];
+        }
+
+        $sections = array_values(array_filter(array_map(
+            static fn (array $source): string => trim((string) ($source['section'] ?? '')),
+            array_filter((array) data_get($category, 'homepage_evidence.sources', []), 'is_array'),
+        )));
+        $description = trim((string) ($category['description'] ?? ''));
+        $normalizedName = $this->normalizeEvidence($name);
+        $hasDistinctSection = collect($sections)->contains(
+            fn (string $section): bool => $this->normalizeEvidence($section) !== $normalizedName,
+        );
+        if ($description === '' && ! $hasDistinctSection) {
+            throw new RuntimeException(
+                'The homepage category "'.$name.'" lacks manifest-derived semantic context. '
+                .'A known parent category URL, description, or distinct Elementor section is required. No AI was called.',
+            );
+        }
+
+        return [
+            'terms' => $this->categoryTerms($category),
+            'context' => ['source' => 'manifest_evidence', 'subject' => $name],
+        ];
+    }
+
+    private function normalizeEvidence(string $value): string
+    {
+        return trim((string) preg_replace('/[^a-z0-9]+/', ' ', strtolower($value)));
     }
 }
