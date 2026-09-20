@@ -20,6 +20,49 @@ involve this generic engine. Bug IDs are shared with the Publish app log, so
 
 ---
 
+## CAMPAIGN-BUG-047 — Explicit article audience was dropped from media selection
+
+- **Severity:** High
+- **Status:** Generic policy patched 2026-09-19 23:37 EST in 1.1.12; Publish adapter release pending.
+- **Impact:** A Grit Daily article explicitly about women entrepreneurs selected
+  an inline stock image of a man working alone because its generated search term
+  degraded to `small business owner at computer working`.
+- **Root cause:** Media search treated each generated phrase independently from
+  the article's explicit audience. Fallback queries noticed some audience words,
+  but the primary query and candidate acceptance did not preserve them.
+- **Patch:** `CampaignMediaAudiencePolicy` qualifies a generic stock query with
+  an explicit audience from the article title and rejects descriptive candidate
+  metadata that identifies only the conflicting audience. Neutral candidate
+  descriptions remain eligible; the policy does not guess from missing metadata.
+- **Guard:** An explicit audience must remain in every primary and fallback
+  media query. Reject a candidate only on positive conflicting description
+  evidence; never infer identity from a URL, article claim or absent metadata.
+
+---
+
+## CAMPAIGN-BUG-046 — Campaign runs lacked durable stage timing and initiator provenance
+
+- **Severity:** High
+- **Status:** Patched 2026-09-19 23:34 EST in 1.1.12; Publish adapter release pending.
+- **Impact:** A completed campaign operation exposed only coarse operation
+  timestamps and inconsistent event durations. It could not prove how long each
+  reusable workflow phase took or distinguish a site-native run from Codex,
+  Claude, the scheduler, API or direct Artisan execution.
+- **Root cause:** Timing was emitted opportunistically by application adapters,
+  while the generic lifecycle owned the stage order but did not measure it.
+  Initiator identity had no normalized, signed domain record.
+- **Patch:** The generic workflow now returns start, finish and duration for the
+  complete run and each prepare, discover, generate and deliver phase.
+  `CampaignRunProvenance` normalizes the six supported origins, hashes session
+  and request identifiers, binds the configuration fingerprint and issues a
+  server-verifiable HMAC signature without storing raw session identifiers.
+- **Guard:** Every application adapter must persist this generic timing record
+  and the signed provenance on its durable run. Never infer Codex or Claude from
+  article content, store raw agent session identifiers, or label an
+  agent-triggered run as site-native.
+
+---
+
 ## CAMPAIGN-BUG-043 — Revision redelivery erased saved WordPress tags
 
 - **Severity:** High
