@@ -82,6 +82,9 @@ final class CampaignRunTelemetryTest extends TestCase
                 'started_at' => '2026-09-20T04:22:06+00:00',
                 'completed_at' => '2026-09-20T04:22:21+00:00',
                 'type' => 'success',
+                'timing_boundary' => 'source_provider',
+                'timing_work_type' => 'remote',
+                'provider' => 'google_news',
             ],
             [
                 'timing_section' => 'wordpress_preparation',
@@ -90,12 +93,29 @@ final class CampaignRunTelemetryTest extends TestCase
                 'started_at' => '2026-09-20T04:23:05+00:00',
                 'completed_at' => '2026-09-20T04:23:25+00:00',
                 'type' => 'success',
+                'timing_boundary' => 'wordpress',
+                'timing_work_type' => 'remote',
+            ],
+            [
+                'timing_section' => 'source_acquisition',
+                'timing_task' => 'replacement_discovery',
+                'duration_ms' => 2000,
+                'timing_attempt' => 2,
+                'type' => 'error',
+                'message' => 'Provider timed out.',
             ],
         ], 60000);
 
-        $this->assertSame(35000, $report['measured_duration_ms']);
-        $this->assertSame(25000, $report['unmeasured_duration_ms']);
+        $this->assertSame(37000, $report['measured_duration_ms']);
+        $this->assertSame(23000, $report['unmeasured_duration_ms']);
         $this->assertSame('inline_media_upload', $report['slowest_tasks'][0]['task']);
         $this->assertSame(['source_acquisition', 'wordpress_preparation'], array_column($report['sections'], 'section'));
+        $this->assertSame(['wordpress_preparation', 'source_acquisition'], array_column($report['time_intensive_sections'], 'section'));
+        $this->assertSame(['inline_media_upload', 'initial_discovery'], array_column($report['time_intensive_tasks'], 'task'));
+        $this->assertSame('wordpress', $report['time_intensive_tasks'][0]['boundary']);
+        $this->assertSame(33.33, $report['time_intensive_tasks'][0]['run_share_percent']);
+        $this->assertSame('replacement_discovery', $report['failed_tasks'][0]['task']);
+        $this->assertSame('replacement_discovery', $report['retried_tasks'][0]['task']);
+        $this->assertSame(5000, $report['time_intensive_criteria']['minimum_duration_ms']);
     }
 }

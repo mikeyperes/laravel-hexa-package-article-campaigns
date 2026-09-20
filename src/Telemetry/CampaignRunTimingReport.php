@@ -5,12 +5,17 @@ namespace hexa_package_article_campaigns\Telemetry;
 /** Builds a queryable leaf-task timing report from application-owned events. */
 final class CampaignRunTimingReport
 {
+    private const TIME_INTENSIVE_MINIMUM_MS = 5000;
+
+    private const TIME_INTENSIVE_RUN_SHARE_PERCENT = 5.0;
+
     /**
      * @param  array<int, array<string, mixed>>  $events
      * @return array<string, mixed>
      */
     public function summarize(array $events, ?int $runDurationMs = null): array
     {
+        $runDurationMs = $runDurationMs === null ? null : max(0, $runDurationMs);
         $sections = [];
         $slowest = [];
         $measuredDurationMs = 0;
@@ -33,8 +38,12 @@ final class CampaignRunTimingReport
                 'attempt' => $this->positiveInteger($event['timing_attempt'] ?? null),
                 'provider' => $this->bounded($event['provider'] ?? null, 80),
                 'model' => $this->bounded($event['model'] ?? null, 120),
+                'boundary' => $this->key($event['timing_boundary'] ?? null),
+                'work_type' => $this->key($event['timing_work_type'] ?? null),
                 'target' => $this->bounded($event['timing_target'] ?? $event['url'] ?? null, 240),
                 'outcome' => $this->bounded($event['message'] ?? null, 500),
+                'details' => $this->bounded($event['details'] ?? null, 1000),
+                'run_share_percent' => $this->percentOfRun($durationMs, $runDurationMs),
                 'sequence' => $sequence + 1,
             ], static fn (mixed $value): bool => $value !== null && $value !== '');
 
@@ -46,6 +55,8 @@ final class CampaignRunTimingReport
                     'task_count' => 0,
                     'started_at' => null,
                     'completed_at' => null,
+                    'boundary' => $record['boundary'] ?? null,
+                    'work_type' => $record['work_type'] ?? null,
                     'tasks' => [],
                 ];
             }
@@ -66,7 +77,41 @@ final class CampaignRunTimingReport
                 ?: ($left['sequence'] <=> $right['sequence']);
         });
 
-        $runDurationMs = $runDurationMs === null ? null : max(0, $runDurationMs);
+        foreach ($sections as &$section) {
+            $section['run_share_percent'] = $this->percentOfRun($section['duration_ms'], $runDurationMs);
+        }
+        unset($section);
+
+        $timeIntensiveTasks = array_values(array_filter(
+            $slowest,
+            fn (array $task): bool => $this->isTimeIntensive((int) $task['duration_ms'], $runDurationMs)
+        ));
+        foreach ($timeIntensiveTasks as $rank => &$task) {
+            $task['rank'] = $rank + 1;
+        }
+        unset($task);
+
+        $timeIntensiveSections = array_values(array_filter(
+            $sections,
+            fn (array $section): bool => $this->isTimeIntensive((int) $section['duration_ms'], $runDurationMs)
+        ));
+        usort($timeIntensiveSections, static function (array $left, array $right): int {
+            return ($right['duration_ms'] <=> $left['duration_ms'])
+                ?: strcmp((string) $left['section'], (string) $right['section']);
+        });
+        foreach ($timeIntensiveSections as $rank => &$section) {
+            $section['rank'] = $rank + 1;
+        }
+        unset($section);
+
+        $failedTasks = array_values(array_filter(
+            $slowest,
+            static fn (array $task): bool => ($task['status'] ?? null) === 'failed'
+        ));
+        $retriedTasks = array_values(array_filter(
+            $slowest,
+            static fn (array $task): bool => (int) ($task['attempt'] ?? 0) > 1
+        ));
         $unmeasuredDurationMs = $runDurationMs === null
             ? null
             : max(0, $runDurationMs - $measuredDurationMs);
@@ -83,7 +128,35 @@ final class CampaignRunTimingReport
                 : null,
             'sections' => array_values($sections),
             'slowest_tasks' => array_slice($slowest, 0, 10),
+            'time_intensive_criteria' => [
+                'minimum_duration_ms' => self::TIME_INTENSIVE_MINIMUM_MS,
+                'minimum_run_share_percent' => self::TIME_INTENSIVE_RUN_SHARE_PERCENT,
+                'rule' => 'duration_or_run_share',
+            ],
+            'time_intensive_sections' => array_slice($timeIntensiveSections, 0, 10),
+            'time_intensive_tasks' => array_slice($timeIntensiveTasks, 0, 20),
+            'failed_tasks' => array_slice($failedTasks, 0, 20),
+            'retried_tasks' => array_slice($retriedTasks, 0, 20),
         ], static fn (mixed $value): bool => $value !== null);
+    }
+
+    private function isTimeIntensive(int $durationMs, ?int $runDurationMs): bool
+    {
+        if ($durationMs >= self::TIME_INTENSIVE_MINIMUM_MS) {
+            return true;
+        }
+
+        return ($this->percentOfRun($durationMs, $runDurationMs) ?? 0)
+            >= self::TIME_INTENSIVE_RUN_SHARE_PERCENT;
+    }
+
+    private function percentOfRun(int $durationMs, ?int $runDurationMs): ?float
+    {
+        if ($runDurationMs === null || $runDurationMs <= 0) {
+            return null;
+        }
+
+        return round(($durationMs / $runDurationMs) * 100, 2);
     }
 
     private function key(mixed $value): ?string

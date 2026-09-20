@@ -69,6 +69,15 @@ overlapping time. Keep application-specific task names in the adapter; the
 generic package accepts explicit timing events and contains no Publish or site
 logic.
 
+**Delay-attribution follow-up — 2026-09-20 01:54:22 EST.** A 160-second live
+run showed that a simple slowest-task list still made an auditor reconstruct
+the actual bottlenecks. The generic report now promotes any task or section
+that takes at least five seconds or five percent of run time into separate,
+ranked `time_intensive_tasks` and `time_intensive_sections`. Each record retains
+its run share, remote/local work type, owning boundary, provider, model, target,
+attempt, outcome and details. Failed and retried tasks are also separate lists,
+so provider retries and failures cannot disappear beneath a successful total.
+
 ---
 
 ## CAMPAIGN-BUG-043 — Revision redelivery erased saved WordPress tags
