@@ -20,6 +20,27 @@ involve this generic engine. Bug IDs are shared with the Publish app log, so
 
 ---
 
+## CAMPAIGN-BUG-054 — Manifest delivery capabilities were discarded
+
+- **Severity:** High
+- **Status:** Patched 2026-09-20 03:17 EST in 1.1.20.
+- **Impact:** The publication manifest could describe delivery support, but the
+  reusable campaign definition retained only taxonomy capabilities. Publish
+  therefore had no durable, generic input for deciding whether a site supports
+  article audio and attempted TTS on unsupported sites.
+- **Root cause:** `PublicationManifestMapper` validated delivery capabilities
+  only to establish manifest compatibility and discarded them before compiling
+  the immutable campaign definition.
+- **Patch:** Current definitions now preserve a normalized
+  `delivery_capabilities.article_audio` boolean and expose it through
+  `HomepageCategoryPoolDefinition::applySettings()`. Definitions created
+  before this field remain fingerprint-compatible and valid until their normal
+  manifest refresh adds the capability.
+- **Guard:** Application adapters must consume this definition field instead
+  of site names, manual campaign flags, plugin probing, or unconditional TTS.
+
+---
+
 ## CAMPAIGN-BUG-052 — Generic sections inherited raw ambiguous child labels
 
 - **Severity:** High

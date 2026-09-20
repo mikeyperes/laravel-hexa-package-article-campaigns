@@ -33,6 +33,7 @@ final readonly class CampaignDefinition
         public array $taxonomyCapabilities,
         public array $categories,
         public ?array $publicationFocus,
+        public array $deliveryCapabilities,
         public string $fingerprint,
     ) {}
 
@@ -51,6 +52,7 @@ final readonly class CampaignDefinition
         array $taxonomyCapabilities,
         array $categories,
         ?array $publicationFocus = null,
+        array $deliveryCapabilities = [],
     ): self {
         $payload = self::payload(
             $retrievalMethod,
@@ -62,6 +64,7 @@ final readonly class CampaignDefinition
             $taxonomyCapabilities,
             $categories,
             $publicationFocus,
+            $deliveryCapabilities,
         );
         self::validate($payload);
 
@@ -75,6 +78,7 @@ final readonly class CampaignDefinition
             $taxonomyCapabilities,
             $categories,
             $publicationFocus,
+            $deliveryCapabilities,
             self::hash($payload),
         );
     }
@@ -93,6 +97,7 @@ final readonly class CampaignDefinition
             (array) $definition['taxonomy_capabilities'],
             array_values((array) $definition['categories']),
             isset($definition['publication_focus']) ? (array) $definition['publication_focus'] : null,
+            (array) ($definition['delivery_capabilities'] ?? []),
         );
         $expected = self::hash($payload);
         $actual = (string) ($definition['fingerprint'] ?? '');
@@ -110,6 +115,7 @@ final readonly class CampaignDefinition
             (array) $definition['taxonomy_capabilities'],
             array_values((array) $definition['categories']),
             isset($definition['publication_focus']) ? (array) $definition['publication_focus'] : null,
+            (array) ($definition['delivery_capabilities'] ?? []),
             $actual,
         );
     }
@@ -127,6 +133,7 @@ final readonly class CampaignDefinition
             $this->taxonomyCapabilities,
             $this->categories,
             $this->publicationFocus,
+            $this->deliveryCapabilities,
         ) + ['fingerprint' => $this->fingerprint];
     }
 
@@ -141,8 +148,9 @@ final readonly class CampaignDefinition
         array $taxonomyCapabilities,
         array $categories,
         ?array $publicationFocus,
+        array $deliveryCapabilities,
     ): array {
-        return array_filter([
+        $payload = array_filter([
             'definition_version' => self::DEFINITION_VERSION,
             'policy_version' => self::POLICY_VERSION,
             'retrieval_method' => $retrievalMethod,
@@ -155,6 +163,12 @@ final readonly class CampaignDefinition
             'categories' => array_values($categories),
             'publication_focus' => $publicationFocus,
         ], static fn (mixed $value, string $key): bool => $key !== 'publication_focus' || $value !== null, ARRAY_FILTER_USE_BOTH);
+
+        if ($deliveryCapabilities !== []) {
+            $payload['delivery_capabilities'] = $deliveryCapabilities;
+        }
+
+        return $payload;
     }
 
     /** @param array<string, mixed> $definition */
@@ -173,6 +187,12 @@ final readonly class CampaignDefinition
             || ! is_array($definition['categories'] ?? null)
             || $definition['categories'] === []) {
             throw new InvalidArgumentException('Campaign definition is incomplete or uses an unsupported schema.');
+        }
+
+        if (array_key_exists('delivery_capabilities', $definition)
+            && (! is_array($definition['delivery_capabilities'])
+                || ! is_bool($definition['delivery_capabilities']['article_audio'] ?? null))) {
+            throw new InvalidArgumentException('Campaign definition contains invalid delivery capabilities.');
         }
 
         $ids = [];

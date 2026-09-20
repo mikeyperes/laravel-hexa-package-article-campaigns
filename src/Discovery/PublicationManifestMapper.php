@@ -221,7 +221,20 @@ final class PublicationManifestMapper
                 'description' => (string) ($publication['description'] ?? ''),
                 'homepage_title' => (string) ($homepage['title'] ?? ''),
             ],
+            $this->deliveryCapabilities($delivery),
         )->toArray();
+    }
+
+    /** @return array{article_audio:bool} */
+    private function deliveryCapabilities(array $delivery): array
+    {
+        if (array_key_exists('article_audio', $delivery) && ! is_bool($delivery['article_audio'])) {
+            throw $this->failure('the article-audio delivery capability is malformed');
+        }
+
+        return [
+            'article_audio' => ($delivery['article_audio'] ?? false) === true,
+        ];
     }
 
     private function validateManifestIdentity(array $manifest): void

@@ -14,6 +14,7 @@ final class CampaignDefinitionCompiler
      * @param array<string, mixed> $taxonomyCapabilities
      * @param array<int, array<string, mixed>> $categories
      * @param array{name:string,description?:string,homepage_title?:string} $publication
+     * @param array<string, mixed> $deliveryCapabilities
      */
     public function compile(
         string $manifestUrl,
@@ -24,6 +25,7 @@ final class CampaignDefinitionCompiler
         array $taxonomyCapabilities,
         array $categories,
         array $publication,
+        array $deliveryCapabilities = [],
     ): CampaignDefinition {
         $identity = trim(implode(' ', [
             (string) ($publication['name'] ?? ''),
@@ -43,6 +45,7 @@ final class CampaignDefinitionCompiler
             $taxonomyCapabilities,
             $compiledCategories,
             $focus,
+            $deliveryCapabilities,
         );
     }
 

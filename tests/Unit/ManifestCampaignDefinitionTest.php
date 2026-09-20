@@ -32,6 +32,8 @@ final class ManifestCampaignDefinitionTest extends TestCase
         $this->assertContains('oceanic cartography', $definition['categories'][0]['terms']);
         $this->assertContains('currents', $definition['categories'][0]['terms']);
         $this->assertNotEmpty($definition['categories'][0]['queries']);
+        $this->assertFalse($definition['delivery_capabilities']['article_audio']);
+        $this->assertFalse(HomepageCategoryPoolDefinition::applySettings([], $definition)['delivery_capabilities']['article_audio']);
     }
 
     public function test_ambiguous_child_category_uses_parent_url_subject_instead_of_literal_brand_matching(): void
@@ -375,6 +377,7 @@ final class ManifestCampaignDefinitionTest extends TestCase
             'delivery_capabilities' => [
                 'rest_api' => true,
                 'categories' => true,
+                'article_audio' => false,
                 'public_manifest' => [
                     'namespace' => 'smpi/v1',
                     'route' => '/publication-manifest',

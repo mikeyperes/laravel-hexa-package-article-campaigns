@@ -27,6 +27,7 @@ class HomepageCategoryPoolDefinition
             'discovery_process' => self::TYPE,
             'homepage_pool' => $definition,
             'taxonomy_capabilities' => (array) ($definition['taxonomy_capabilities'] ?? []),
+            'delivery_capabilities' => (array) ($definition['delivery_capabilities'] ?? []),
             'allowed_categories' => $categories,
             'category_rotation_enabled' => true,
             'category_rotation_pool' => $categories,
