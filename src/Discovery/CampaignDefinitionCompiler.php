@@ -54,9 +54,11 @@ final class CampaignDefinitionCompiler
     private function compileCategories(array $categories, string $identity, ?array $focus): array
     {
         $specific = [];
-        foreach ($categories as $category) {
+        $subjects = [];
+        foreach ($categories as $index => $category) {
             if (! $this->searchPolicy->generic((string) ($category['name'] ?? ''))) {
-                $specific = array_merge($specific, $this->categoryTerms($category));
+                $subjects[$index] = $this->categorySubject($category);
+                $specific = array_merge($specific, $subjects[$index]['terms']);
             }
         }
 
@@ -71,10 +73,10 @@ final class CampaignDefinitionCompiler
             $specific,
         ))));
 
-        foreach ($categories as &$category) {
+        foreach ($categories as $index => &$category) {
             $name = trim((string) ($category['name'] ?? ''));
             $generic = $this->searchPolicy->generic($name);
-            $subject = $generic ? null : $this->categorySubject($category);
+            $subject = $generic ? null : ($subjects[$index] ?? $this->categorySubject($category));
             $terms = $generic
                 ? array_slice($specific, 0, 15)
                 : $subject['terms'];

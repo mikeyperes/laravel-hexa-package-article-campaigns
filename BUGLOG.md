@@ -20,6 +20,21 @@ involve this generic engine. Bug IDs are shared with the Publish app log, so
 
 ---
 
+## CAMPAIGN-BUG-052 — Generic sections inherited raw ambiguous child labels
+
+- **Severity:** High
+- **Status:** Patched 2026-09-20 02:49 EST in 1.1.19.
+- **Impact:** The `Plugged In` lane correctly compiled to podcast semantics,
+  but the generic `Features` lane still aggregated the pre-context literal
+  terms `plugged in` and `plugged`. An unrelated brand could therefore enter
+  the generic lane even after the child lane itself was repaired.
+- **Root cause:** The first compiler pass built generic-section subjects with
+  raw category evidence; contextual child resolution occurred only later.
+- **Patch:** The compiler now resolves every specific lane once, caches that
+  subject, and builds generic sections only from those resolved semantic terms.
+- **Guard:** `Features` inherits podcast terms from a nested `Plugged In` lane
+  and never inherits the literal ambiguous phrase.
+
 ## CAMPAIGN-BUG-051 — Plain standalone subjects were treated as unsupported labels
 
 - **Severity:** High

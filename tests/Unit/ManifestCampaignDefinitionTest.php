@@ -106,15 +106,20 @@ final class ManifestCampaignDefinitionTest extends TestCase
 
     public function test_generic_section_inherits_specific_homepage_subjects_without_ambiguity_failure(): void
     {
+        $pluggedIn = $this->category(12, 'Plugged In', 'plugged-in');
+        $pluggedIn['url'] = 'https://publication.test/category/podcasts/plugged-in/';
         $definition = $this->map($this->manifest([
             $this->category(10, 'Business', 'business'),
             $this->category(11, 'Features', 'features'),
+            $pluggedIn,
         ]));
         $features = collect($definition['categories'])->firstWhere('name', 'Features');
 
         $this->assertSame('manifest_evidence', $features['semantic_context']['source']);
         $this->assertSame('Features', $features['semantic_context']['subject']);
         $this->assertContains('business', $features['terms']);
+        $this->assertContains('podcast interview', $features['terms']);
+        $this->assertNotContains('plugged in', $features['terms']);
         $this->assertNotEmpty($features['queries']);
     }
 
