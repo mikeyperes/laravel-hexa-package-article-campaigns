@@ -16,12 +16,23 @@ final class VerifiedDeliveryTermRecoveryPolicy
     /**
      * @param array<string, mixed> $current
      * @param array<int, array<string, mixed>> $attestations Newest first.
+     * @param array<int, string> $requiredTermKeys Taxonomy families that must be
+     *        recovered before an older attestation can be ignored.
      * @return array<string, mixed>
      */
-    public function recoverMissing(array $current, int|string $deliveryKey, array $attestations): array
+    public function recoverMissing(
+        array $current,
+        int|string $deliveryKey,
+        array $attestations,
+        array $requiredTermKeys = self::TERM_KEYS,
+    ): array
     {
         $deliveryKey = trim((string) $deliveryKey);
-        if ($deliveryKey === '' || $deliveryKey === '0' || $this->integerList($current['category_ids'] ?? []) !== []) {
+        $requiredTermKeys = array_values(array_intersect(
+            self::TERM_KEYS,
+            array_values(array_unique(array_map('strval', $requiredTermKeys))),
+        ));
+        if ($deliveryKey === '' || $deliveryKey === '0' || ! $this->hasMissingRequiredTerms($current, $requiredTermKeys)) {
             return $current;
         }
 
@@ -50,10 +61,28 @@ final class VerifiedDeliveryTermRecoveryPolicy
                 }
             }
 
-            return $current;
+            // CRITICAL — see BUGLOG.md CAMPAIGN-BUG-043. A newer verified
+            // attestation can be incomplete for one taxonomy family. Continue
+            // to older same-output evidence until every taxonomy family the
+            // caller says is still expected has been recovered.
+            if (! $this->hasMissingRequiredTerms($current, $requiredTermKeys)) {
+                return $current;
+            }
         }
 
         return $current;
+    }
+
+    /** @param array<int, string> $requiredTermKeys */
+    private function hasMissingRequiredTerms(array $current, array $requiredTermKeys): bool
+    {
+        foreach ($requiredTermKeys as $key) {
+            if ($this->integerList($current[$key] ?? []) === []) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     /** @return array<int, int> */

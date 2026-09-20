@@ -20,6 +20,29 @@ involve this generic engine. Bug IDs are shared with the Publish app log, so
 
 ---
 
+## CAMPAIGN-BUG-043 — Revision redelivery erased saved WordPress tags
+
+- **Severity:** High
+- **Status:** Patched 2026-09-19 22:25 EST in 1.1.11.
+- **Impact:** Transit Tomorrow article 7622 retained three saved Publish tags,
+  but its accepted refinement redelivery updated WordPress post 462596 with an
+  empty tag-ID list. The public post lost every tag even though its category,
+  author, media and saved article record remained correct.
+- **Root cause:** Verified taxonomy recovery stopped after the newest same-post
+  attestation supplied any valid category. It did not continue to older
+  verified evidence when a taxonomy family still expected by the caller, such
+  as `tag_ids`, was absent from that newer attestation.
+- **Patch:** The generic recovery policy now accepts the taxonomy families the
+  caller still expects and walks newest-to-oldest same-output attestations until
+  all of those families are recovered. It still stops after the newest evidence
+  satisfies the caller, so an intentionally removed taxonomy is not revived.
+- **Guard:** A newer verified category-only attestation followed by an older
+  category-and-tag attestation must recover tags only when the caller still
+  requires tags. Never treat one recovered taxonomy family as proof that every
+  expected family is present.
+
+---
+
 ## CAMPAIGN-BUG-003 — Manifest-only pool validation invalidated live campaigns
 
 - **Severity:** Critical (caused the 41-hour scheduler outage logged as
