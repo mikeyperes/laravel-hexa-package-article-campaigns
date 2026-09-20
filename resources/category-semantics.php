@@ -13,8 +13,8 @@ return [
     'generic_sections' => [
         'news', 'breaking news', 'trending', 'features', 'industry updates',
         'industry trends', 'industry commentary', 'resources', 'guides',
-        'tutorials', 'how to', 'expert roundups', 'press release',
-        'press releases', 'international', 'viral news', 'knowledge base',
+        'tutorials', 'how to', 'expert roundups', 'international',
+        'viral news', 'knowledge base',
         'from the ground up',
     ],
     'evergreen_sections' => ['knowledge base', 'resources', 'guides', 'tutorials', 'how to'],
@@ -91,6 +91,7 @@ return [
         'polygon' => ['Polygon blockchain', 'Polygon network', 'Polygon crypto', 'Polygon ecosystem', 'POL token'],
         'nft' => ['NFT', 'non fungible tokens', 'digital collectibles', 'NFT marketplace', 'tokenized art'],
         'blockchain' => ['blockchain', 'tokenization', 'decentralized finance', 'Web3', 'digital assets'],
+        'press release' => ['press release', 'news release', 'company announcement', 'corporate announcement', 'official announcement'],
         'public relations' => ['public relations', 'press release distribution', 'corporate communications', 'media relations', 'PR agencies'],
         'vehicle tech' => ['electric vehicle', 'autonomous vehicle', 'automotive', 'vehicle technology', 'vehicle safety'],
         'smart infrastructure' => ['smart infrastructure', 'smart cities', 'smart building', 'intelligent transport', 'building automation'],

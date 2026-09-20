@@ -125,6 +125,23 @@ final class ManifestCampaignDefinitionTest extends TestCase
         $this->assertNotEmpty($features['queries']);
     }
 
+    public function test_press_release_format_keeps_format_vocabulary_instead_of_inheriting_every_site_topic(): void
+    {
+        $definition = $this->map($this->manifest([
+            $this->category(45, 'Cryptocurrency', 'cryptocurrency'),
+            $this->category(100, 'Blockchain', 'blockchain'),
+            $this->category(171, 'Press Releases', 'press-releases'),
+        ]));
+        $pressReleases = collect($definition['categories'])->firstWhere('name', 'Press Releases');
+
+        $this->assertSame('category_vocabulary', $pressReleases['semantic_context']['source']);
+        $this->assertContains('press release', $pressReleases['terms']);
+        $this->assertContains('company announcement', $pressReleases['terms']);
+        $this->assertNotContains('bitcoin', $pressReleases['terms']);
+        $this->assertNotContains('blockchain', $pressReleases['terms']);
+        $this->assertContains('press release news', $pressReleases['queries']);
+    }
+
     public function test_current_definition_fingerprint_ignores_binding_metadata_but_rejects_policy_tampering(): void
     {
         $definition = $this->map($this->manifest([$this->category(10, 'Business', 'business')]));

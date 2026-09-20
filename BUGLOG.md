@@ -20,6 +20,28 @@ involve this generic engine. Bug IDs are shared with the Publish app log, so
 
 ---
 
+## CAMPAIGN-BUG-055 — Press-release lane inherited every publication topic
+
+- **Severity:** High
+- **Status:** Patched 2026-09-20 04:02 EST in 1.1.21.
+- **Impact:** A normal Bitcoin market article was generated and published in
+  the `Press Releases` category because that lane searched the complete
+  Cryptocurrency, Blockchain and Podcasts vocabulary instead of release-format
+  evidence.
+- **Root cause:** `Press Release` and `Press Releases` were classified as
+  generic homepage sections. Generic sections intentionally inherit all
+  specific homepage subjects, which is correct for cross-topic sections such
+  as Features but not for a source format.
+- **Patch:** Press-release categories are now specific, application-neutral
+  format lanes with release and official-announcement vocabulary. They no
+  longer inherit publication-wide topic terms and participate in the existing
+  complete-source category reconciliation.
+- **Guard:** A homepage with Cryptocurrency, Blockchain and Press Releases must
+  compile Press Releases from release-format terms and never include Bitcoin
+  or blockchain merely because those are sibling categories.
+
+---
+
 ## CAMPAIGN-BUG-054 — Manifest delivery capabilities were discarded
 
 - **Severity:** High
