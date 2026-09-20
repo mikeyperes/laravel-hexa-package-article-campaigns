@@ -20,6 +20,23 @@ involve this generic engine. Bug IDs are shared with the Publish app log, so
 
 ---
 
+## CAMPAIGN-BUG-049 — Source and output length gates contradicted the approved floor
+
+- **Severity:** High
+- **Status:** Patched 2026-09-20 02:33 EST in 1.1.16.
+- **Impact:** A complete 430-word relevant source was rejected against a
+  650-word template floor, while the generated-output gate independently used
+  550 words. Discovery then continued to an unrelated source and spent AI
+  credits on a draft that could not pass publication fit.
+- **Root cause:** The Publish adapter derived source and article floors in two
+  separate places instead of using one reusable campaign length policy.
+- **Patch:** The generic policy caps the approved article floor at 450 words
+  and the single-source evidence floor at 400 words. Lower configured floors
+  remain respected down to 350 words.
+- **Guard:** Both the output gate and source-extraction boundary must consume
+  `CampaignArticleLengthPolicy`; no adapter may recreate independent numeric
+  clamps.
+
 ## CAMPAIGN-BUG-048 — Ambiguous category labels matched unrelated brands and domains
 
 - **Severity:** High
