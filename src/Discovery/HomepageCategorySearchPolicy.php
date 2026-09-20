@@ -81,6 +81,25 @@ class HomepageCategorySearchPolicy
         return null;
     }
 
+    /**
+     * A plain subject such as `Security` is useful first-party evidence even
+     * before it has a curated vocabulary entry. A phrase whose only content
+     * token depends on a stop word, such as `Plugged In`, remains ambiguous.
+     */
+    public function hasStandaloneSubject(string $label): bool
+    {
+        $tokens = array_values(array_filter(preg_split(
+            '/[^a-z0-9]+/',
+            Str::lower(Str::ascii(trim($label))),
+        ) ?: []));
+        $content = array_values(array_filter(
+            $tokens,
+            fn (string $token): bool => ! in_array($token, (array) ($this->semantics['stop_words'] ?? []), true),
+        ));
+
+        return count($content) >= 2 || (count($content) === 1 && count($tokens) === 1);
+    }
+
     public function publicationFocus(string $identity): ?array
     {
         $text = Str::lower(Str::ascii($identity));

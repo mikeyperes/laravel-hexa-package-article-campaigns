@@ -66,6 +66,19 @@ final class ManifestCampaignDefinitionTest extends TestCase
         }
     }
 
+    public function test_plain_standalone_subject_compiles_without_a_curated_vocabulary_entry(): void
+    {
+        $definition = $this->map($this->manifest([
+            $this->category(73, 'Security', 'security'),
+        ]));
+        $lane = $definition['categories'][0];
+
+        $this->assertSame('manifest_evidence', $lane['semantic_context']['source']);
+        $this->assertSame('Security', $lane['semantic_context']['subject']);
+        $this->assertContains('security', $lane['terms']);
+        $this->assertContains('security news', $lane['queries']);
+    }
+
     public function test_broad_publication_gets_no_mandatory_niche_focus_but_first_party_specialist_identity_does(): void
     {
         $categories = [

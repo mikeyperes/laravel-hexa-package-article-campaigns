@@ -20,6 +20,22 @@ involve this generic engine. Bug IDs are shared with the Publish app log, so
 
 ---
 
+## CAMPAIGN-BUG-051 — Plain standalone subjects were treated as unsupported labels
+
+- **Severity:** High
+- **Status:** Patched 2026-09-20 02:44 EST in 1.1.18.
+- **Impact:** After generic sections were repaired, the Smartech Daily rescan
+  stopped before AI on the valid `Security` category because it had no parent,
+  description, or distinct Elementor heading.
+- **Root cause:** The ambiguity gate did not distinguish a self-contained
+  subject label from a phrase whose meaning depends on a stop word.
+- **Patch:** Unknown labels now compile directly when they contain either one
+  standalone content token or at least two content tokens. A phrase such as
+  `Plugged In`, whose only content token is paired with a stop word, still
+  requires parent or other manifest context.
+- **Guard:** `Security` compiles from first-party manifest evidence while the
+  uncontextualized `Plugged In` regression remains blocked before AI.
+
 ## CAMPAIGN-BUG-050 — Generic homepage sections entered the ambiguity blocker
 
 - **Severity:** High

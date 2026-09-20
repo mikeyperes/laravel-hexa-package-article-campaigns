@@ -167,7 +167,7 @@ final class CampaignDefinitionCompiler
         $hasDistinctSection = collect($sections)->contains(
             fn (string $section): bool => $this->normalizeEvidence($section) !== $normalizedName,
         );
-        if ($description === '' && ! $hasDistinctSection) {
+        if ($description === '' && ! $hasDistinctSection && ! $this->searchPolicy->hasStandaloneSubject($name)) {
             throw new RuntimeException(
                 'The homepage category "'.$name.'" lacks manifest-derived semantic context. '
                 .'A known parent category URL, description, or distinct Elementor section is required. No AI was called.',
