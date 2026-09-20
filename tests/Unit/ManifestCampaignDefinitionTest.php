@@ -91,6 +91,20 @@ final class ManifestCampaignDefinitionTest extends TestCase
         $this->assertSame('headline', $specialist['publication_focus']['surface']);
     }
 
+    public function test_generic_section_inherits_specific_homepage_subjects_without_ambiguity_failure(): void
+    {
+        $definition = $this->map($this->manifest([
+            $this->category(10, 'Business', 'business'),
+            $this->category(11, 'Features', 'features'),
+        ]));
+        $features = collect($definition['categories'])->firstWhere('name', 'Features');
+
+        $this->assertSame('manifest_evidence', $features['semantic_context']['source']);
+        $this->assertSame('Features', $features['semantic_context']['subject']);
+        $this->assertContains('business', $features['terms']);
+        $this->assertNotEmpty($features['queries']);
+    }
+
     public function test_current_definition_fingerprint_ignores_binding_metadata_but_rejects_policy_tampering(): void
     {
         $definition = $this->map($this->manifest([$this->category(10, 'Business', 'business')]));

@@ -20,6 +20,23 @@ involve this generic engine. Bug IDs are shared with the Publish app log, so
 
 ---
 
+## CAMPAIGN-BUG-050 — Generic homepage sections entered the ambiguity blocker
+
+- **Severity:** High
+- **Status:** Patched 2026-09-20 02:39 EST in 1.1.17.
+- **Impact:** The first manifest rescan after CAMPAIGN-BUG-048 stopped on a
+  normal `Features` lane before AI, preventing an otherwise valid campaign
+  definition from being refreshed.
+- **Root cause:** Compilation resolved semantic context before branching on a
+  known generic section. Generic sections were therefore treated like unknown
+  literal labels even though their subject is intentionally inherited from the
+  site's specific homepage lanes.
+- **Patch:** Generic sections now bypass unknown-label resolution, inherit the
+  compiled specific homepage subjects, and store manifest-evidence context.
+- **Guard:** A manifest containing `Business` plus `Features` must compile the
+  generic lane with business terms and non-empty queries without invoking the
+  ambiguity blocker.
+
 ## CAMPAIGN-BUG-049 — Source and output length gates contradicted the approved floor
 
 - **Severity:** High

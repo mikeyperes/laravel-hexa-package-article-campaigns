@@ -73,8 +73,9 @@ final class CampaignDefinitionCompiler
 
         foreach ($categories as &$category) {
             $name = trim((string) ($category['name'] ?? ''));
-            $subject = $this->categorySubject($category);
-            $terms = $this->searchPolicy->generic($name)
+            $generic = $this->searchPolicy->generic($name);
+            $subject = $generic ? null : $this->categorySubject($category);
+            $terms = $generic
                 ? array_slice($specific, 0, 15)
                 : $subject['terms'];
             $terms = array_values(array_unique(array_filter(array_map(
@@ -86,7 +87,7 @@ final class CampaignDefinitionCompiler
             }
 
             $category['terms'] = $terms;
-            $category['semantic_context'] = $this->searchPolicy->generic($name)
+            $category['semantic_context'] = $generic
                 ? ['source' => 'manifest_evidence', 'subject' => $name]
                 : $subject['context'];
             $category['content_mode'] = $this->searchPolicy->contentMode($name);
