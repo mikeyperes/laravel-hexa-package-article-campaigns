@@ -237,10 +237,13 @@ class CampaignSourceRelevancePolicy
     public function sourceMatchesHomepageCategory(array $source, array $resolved, string $category): bool
     {
         $terms = [];
-        foreach ($this->homepageCategories($resolved) as $lane) {
+        $selectedLane = null;
+        $categories = $this->homepageCategories($resolved);
+        foreach ($categories as $lane) {
             if (strcasecmp($category, (string) ($lane['name'] ?? '')) !== 0) {
                 continue;
             }
+            $selectedLane = $lane;
             $terms = array_merge(
                 (array) ($lane['terms'] ?? []),
                 $this->homepageCategorySearchPolicy->termsForEvidence(
@@ -256,8 +259,27 @@ class CampaignSourceRelevancePolicy
             break;
         }
 
+        $sourceFormat = $this->homepageCategorySearchPolicy->sourceFormat($category);
+        if ($sourceFormat === null) {
+            $categoryMatches = $this->homepageCategorySearchPolicy->matches(
+                $source,
+                array_values(array_unique($terms)),
+            );
+        } else {
+            $contextTerms = $selectedLane === null
+                ? []
+                : $this->homepageCategorySearchPolicy->sourceFormatContextTerms($selectedLane, $categories);
+            $categoryMatches = $selectedLane !== null
+                && $this->homepageCategorySearchPolicy->matchesSourceFormat(
+                    $source,
+                    array_values(array_unique($terms)),
+                )
+                && $contextTerms !== []
+                && $this->homepageCategorySearchPolicy->matches($source, $contextTerms);
+        }
+
         return $terms !== []
-            && $this->homepageCategorySearchPolicy->matches($source, array_values(array_unique($terms)))
+            && $categoryMatches
             && $this->homepageCategorySearchPolicy->matchesPublicationFocus($source, (array) ($resolved['homepage_pool'] ?? []));
     }
 

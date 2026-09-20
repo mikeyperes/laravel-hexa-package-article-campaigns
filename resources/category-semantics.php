@@ -18,6 +18,9 @@ return [
         'from the ground up',
     ],
     'evergreen_sections' => ['knowledge base', 'resources', 'guides', 'tutorials', 'how to'],
+    'source_format_sections' => [
+        'press release' => 'press_release',
+    ],
     'stop_words' => [
         'a', 'an', 'and', 'article', 'articles', 'at', 'by', 'for', 'from',
         'in', 'into', 'news', 'of', 'on', 'or', 'the', 'to', 'with',

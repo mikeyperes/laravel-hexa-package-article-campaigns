@@ -257,10 +257,22 @@ class HomepageCategorySearchPolicy
                 static fn (mixed $term): string => trim((string) $term),
                 array_merge((array) ($category['terms'] ?? []), $this->terms($name)),
             ))));
+            $sourceFormat = $this->sourceFormat($name);
+            $contextTerms = $sourceFormat === null
+                ? []
+                : $this->sourceFormatContextTerms($category, $categories);
+            $formatSupported = $sourceFormat !== null
+                && $contextTerms !== []
+                && collect($sources)->contains(
+                    fn (array $source): bool => $this->matchesSourceFormat($source, $terms)
+                        && $this->matches($source, $contextTerms),
+                );
             $evidence = $this->categoryEvidence($sources, $terms);
             $scores[] = $evidence + [
                 'category' => $name,
                 'generic' => $this->generic($name),
+                'source_format' => $sourceFormat,
+                'source_format_supported' => $formatSupported,
             ];
         }
 
@@ -274,6 +286,8 @@ class HomepageCategorySearchPolicy
             'title_hits' => 0,
             'body_hits' => 0,
             'generic' => false,
+            'source_format' => null,
+            'source_format_supported' => false,
         ];
 
         if ($selectedCategory === '' || ($selected['generic'] ?? false)) {
@@ -287,8 +301,22 @@ class HomepageCategorySearchPolicy
             ];
         }
 
+        if (($selected['source_format'] ?? null) !== null
+            && (bool) ($selected['source_format_supported'] ?? false)) {
+            return [
+                'selected_category' => $selectedCategory,
+                'resolved_category' => $selectedCategory,
+                'selected_category_supported' => true,
+                'reclassified' => false,
+                'reason' => 'source_format_and_publication_subject_supported',
+                'scores' => $scores,
+            ];
+        }
+
         $ranked = collect($scores)
             ->reject(static fn (array $score): bool => (bool) ($score['generic'] ?? false))
+            ->reject(static fn (array $score): bool => ($score['source_format'] ?? null) !== null
+                && ! (bool) ($score['source_format_supported'] ?? false))
             ->sortByDesc(static fn (array $score): array => [
                 (int) ($score['score'] ?? 0),
                 (int) ($score['distinct_terms'] ?? 0),
@@ -378,6 +406,71 @@ class HomepageCategorySearchPolicy
         return in_array($this->categoryKey($name), (array) ($this->semantics['generic_sections'] ?? []), true);
     }
 
+    public function sourceFormat(string $name): ?string
+    {
+        $formats = (array) ($this->semantics['source_format_sections'] ?? []);
+        $key = $this->categoryKey($name);
+
+        foreach (array_values(array_unique([$key, Str::singular($key)])) as $candidate) {
+            $format = trim((string) ($formats[$candidate] ?? ''));
+            if ($format !== '') {
+                return $format;
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * Keep source-format evidence separate from the publication subject. A
+     * press release is eligible only when both surfaces are present.
+     *
+     * @param array<string, mixed> $lane
+     * @param array<int, array<string, mixed>> $categories
+     * @return array<int, string>
+     */
+    public function sourceFormatContextTerms(array $lane, array $categories): array
+    {
+        $stored = $this->normalizedTerms((array) ($lane['context_terms'] ?? []));
+        if ($stored !== []) {
+            return $stored;
+        }
+
+        $context = [];
+        foreach ($categories as $candidate) {
+            $name = trim((string) ($candidate['name'] ?? ''));
+            if ($name === '' || $this->generic($name) || $this->sourceFormat($name) !== null) {
+                continue;
+            }
+            $context = array_merge(
+                $context,
+                (array) ($candidate['terms'] ?? []),
+                $this->terms($name),
+            );
+        }
+
+        return array_slice($this->normalizedTerms($context), 0, 24);
+    }
+
+    /** @param array<int, string> $formatTerms */
+    public function matchesSourceFormat(array $source, array $formatTerms): bool
+    {
+        $metadata = Str::lower(Str::ascii(strip_tags(implode(' ', [
+            (string) ($source['title'] ?? ''),
+            (string) ($source['description'] ?? $source['excerpt'] ?? $source['snippet'] ?? ''),
+            str_replace(['-', '_', '/'], ' ', (string) ($source['url'] ?? '')),
+        ]))));
+
+        foreach ($this->normalizedTerms($formatTerms) as $term) {
+            $pattern = '/(?<![a-z0-9])'.preg_quote(Str::lower(Str::ascii($term)), '/').'(?:s|es)?(?![a-z0-9])/i';
+            if (preg_match($pattern, $metadata) === 1) {
+                return true;
+            }
+        }
+
+        return $this->matches($source, $formatTerms);
+    }
+
     public function contentMode(string $name): string
     {
         return in_array($this->categoryKey($name), (array) ($this->semantics['evergreen_sections'] ?? []), true)
@@ -397,6 +490,18 @@ class HomepageCategorySearchPolicy
         $key = preg_replace('/\s*&\s*/u', ' and ', $key) ?? $key;
 
         return trim(preg_replace('/\s*\([^)]*\)\s*$/u', '', $key) ?? $key);
+    }
+
+    /**
+     * @param array<int, mixed> $terms
+     * @return array<int, string>
+     */
+    private function normalizedTerms(array $terms): array
+    {
+        return array_values(array_unique(array_filter(array_map(
+            static fn (mixed $term): string => trim((string) $term),
+            $terms,
+        ))));
     }
 
     /** @param array<string, mixed> $profile */

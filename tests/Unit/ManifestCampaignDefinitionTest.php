@@ -139,7 +139,55 @@ final class ManifestCampaignDefinitionTest extends TestCase
         $this->assertContains('company announcement', $pressReleases['terms']);
         $this->assertNotContains('bitcoin', $pressReleases['terms']);
         $this->assertNotContains('blockchain', $pressReleases['terms']);
-        $this->assertContains('press release news', $pressReleases['queries']);
+        $this->assertSame('press_release', $pressReleases['source_format']);
+        $this->assertContains('bitcoin', $pressReleases['context_terms']);
+        $this->assertContains('blockchain', $pressReleases['context_terms']);
+        $this->assertContains('cryptocurrency press release', $pressReleases['queries']);
+        $this->assertContains('blockchain news release', $pressReleases['queries']);
+        $this->assertNotContains('press release news', $pressReleases['queries']);
+    }
+
+    public function test_press_release_source_requires_release_format_and_publication_subject_evidence(): void
+    {
+        $definition = $this->map($this->manifest([
+            $this->category(45, 'Cryptocurrency', 'cryptocurrency'),
+            $this->category(100, 'Blockchain', 'blockchain'),
+            $this->category(171, 'Press Releases', 'press-releases'),
+        ]));
+        $resolved = [
+            'discovery_process' => HomepageCategoryPoolDefinition::TYPE,
+            'forced_category' => 'Press Releases',
+            'homepage_pool' => $definition,
+        ];
+        $policy = new CampaignSourceRelevancePolicy(new CampaignNegativeTopicMatcher());
+        $release = [
+            'title' => 'Company Publishes News Release for New Bitcoin Custody Platform',
+            'url' => 'https://wire.test/press-releases/bitcoin-custody-platform',
+            'text' => str_repeat('The press release describes a bitcoin custody platform built on blockchain technology for digital assets. ', 4),
+        ];
+        $unrelatedRelease = [
+            'title' => 'Team Publishes News Release for New Basketball Arena',
+            'url' => 'https://wire.test/press-releases/basketball-arena',
+            'text' => str_repeat('The press release announces a basketball arena for the sports team and its fans. ', 4),
+        ];
+        $ordinaryCryptoNews = [
+            'title' => 'Bitcoin Markets Expand as Blockchain Adoption Lifts Digital Assets',
+            'url' => 'https://news.test/bitcoin-markets',
+            'text' => str_repeat('Bitcoin and cryptocurrency markets expanded as blockchain adoption increased demand for digital assets. ', 4),
+        ];
+
+        $this->assertTrue($policy->sourceMatchesHomepageCategory($release, $resolved, 'Press Releases'));
+        $this->assertFalse($policy->sourceMatchesHomepageCategory($unrelatedRelease, $resolved, 'Press Releases'));
+        $this->assertFalse($policy->sourceMatchesHomepageCategory($ordinaryCryptoNews, $resolved, 'Press Releases'));
+
+        $releaseDecision = $policy->resolveHomepageCategory([$release], $resolved);
+        $this->assertFalse($releaseDecision['reclassified']);
+        $this->assertTrue($releaseDecision['selected_category_supported']);
+        $this->assertSame('Press Releases', $releaseDecision['resolved_category']);
+
+        $newsDecision = $policy->resolveHomepageCategory([$ordinaryCryptoNews], $resolved);
+        $this->assertTrue($newsDecision['reclassified']);
+        $this->assertSame('Cryptocurrency', $newsDecision['resolved_category']);
     }
 
     public function test_current_definition_fingerprint_ignores_binding_metadata_but_rejects_policy_tampering(): void

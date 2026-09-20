@@ -57,11 +57,16 @@ final class CampaignDefinitionCompiler
     private function compileCategories(array $categories, string $identity, ?array $focus): array
     {
         $specific = [];
+        $specificAnchors = [];
         $subjects = [];
         foreach ($categories as $index => $category) {
-            if (! $this->searchPolicy->generic((string) ($category['name'] ?? ''))) {
+            $name = (string) ($category['name'] ?? '');
+            if (! $this->searchPolicy->generic($name)) {
                 $subjects[$index] = $this->categorySubject($category);
-                $specific = array_merge($specific, $subjects[$index]['terms']);
+                if ($this->searchPolicy->sourceFormat($name) === null) {
+                    $specific = array_merge($specific, $subjects[$index]['terms']);
+                    $specificAnchors[] = (string) ($subjects[$index]['terms'][0] ?? '');
+                }
             }
         }
 
@@ -75,10 +80,15 @@ final class CampaignDefinitionCompiler
             static fn (mixed $term): string => trim((string) $term),
             $specific,
         ))));
+        $specificAnchors = array_values(array_unique(array_filter(array_map(
+            static fn (mixed $term): string => trim((string) $term),
+            array_merge($specificAnchors, $specific),
+        ))));
 
         foreach ($categories as $index => &$category) {
             $name = trim((string) ($category['name'] ?? ''));
             $generic = $this->searchPolicy->generic($name);
+            $sourceFormat = $this->searchPolicy->sourceFormat($name);
             $subject = $generic ? null : ($subjects[$index] ?? $this->categorySubject($category));
             $terms = $generic
                 ? array_slice($specific, 0, 15)
@@ -96,14 +106,24 @@ final class CampaignDefinitionCompiler
                 ? ['source' => 'manifest_evidence', 'subject' => $name]
                 : $subject['context'];
             $category['content_mode'] = $this->searchPolicy->contentMode($name);
-            $suffix = $category['content_mode'] === 'evergreen' ? ' guide' : ' news';
-            $category['queries'] = array_map(
-                static fn (string $term): string => $term.$suffix,
-                array_slice($terms, 0, 5),
-            );
-            if (count($category['queries']) === 1) {
-                $category['queries'][] = $terms[0].' industry developments';
-                $category['queries'][] = $terms[0].' research innovation';
+            if ($sourceFormat !== null) {
+                $category['source_format'] = $sourceFormat;
+                $category['context_terms'] = array_slice($specific, 0, 24);
+                if ($category['context_terms'] === []) {
+                    throw new RuntimeException('The source-format homepage category "'.$name.'" has no manifest-derived publication subject. No AI was called.');
+                }
+                $category['queries'] = $this->sourceFormatQueries($terms, $specificAnchors);
+            } else {
+                unset($category['source_format'], $category['context_terms']);
+                $suffix = $category['content_mode'] === 'evergreen' ? ' guide' : ' news';
+                $category['queries'] = array_map(
+                    static fn (string $term): string => $term.$suffix,
+                    array_slice($terms, 0, 5),
+                );
+                if (count($category['queries']) === 1) {
+                    $category['queries'][] = $terms[0].' industry developments';
+                    $category['queries'][] = $terms[0].' research innovation';
+                }
             }
             if ($focus !== null) {
                 $category['queries'] = array_map(
@@ -116,6 +136,29 @@ final class CampaignDefinitionCompiler
         unset($category);
 
         return array_values($categories);
+    }
+
+    /**
+     * @param array<int, string> $formatTerms
+     * @param array<int, string> $contextTerms
+     * @return array<int, string>
+     */
+    private function sourceFormatQueries(array $formatTerms, array $contextTerms): array
+    {
+        $formats = array_slice($formatTerms, 0, 2);
+        $contexts = array_slice($contextTerms, 0, 6);
+        if ($formats === [] || $contexts === []) {
+            return [];
+        }
+        $queries = [];
+        foreach ($contexts as $index => $context) {
+            $format = (string) ($formats[$index % count($formats)] ?? '');
+            if ($context !== '' && $format !== '') {
+                $queries[] = trim($context.' '.$format);
+            }
+        }
+
+        return array_values(array_unique($queries));
     }
 
     /** @param array<string, mixed> $category */

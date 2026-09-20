@@ -42,6 +42,30 @@ involve this generic engine. Bug IDs are shared with the Publish app log, so
 
 ---
 
+## CAMPAIGN-BUG-058 — Press-release discovery lost publication context
+
+- **Severity:** High
+- **Status:** Patched 2026-09-20 04:33:20 EST in 1.1.22.
+- **Impact:** The first Press Releases isolation fix correctly stopped the lane
+  from treating every publication topic as release-format evidence, but it also
+  reduced discovery to generic searches such as `press release news`. A crypto
+  publication therefore examined unrelated government, gaming, sports and
+  consumer releases before stopping with zero extracted sources.
+- **Root cause:** One `terms` collection was serving two different constraints:
+  source format and publication subject. Isolating the format removed the
+  subject from both queries and full-source validation.
+- **Patch:** Source-format lanes now keep `terms` for format evidence and a
+  separate `context_terms` set compiled from non-generic, non-format homepage
+  categories. Every format query contains both a publication subject and a
+  format term. Full-source validation also requires both, while ordinary
+  topical news without format evidence can be reclassified to its topical lane.
+- **Guard:** A crypto Press Releases lane must accept a crypto press release,
+  reject an unrelated sports release, and reclassify ordinary crypto news when
+  no press-release evidence exists. Generic sections must never inherit format
+  vocabulary as publication subject matter.
+
+---
+
 ## CAMPAIGN-BUG-054 — Manifest delivery capabilities were discarded
 
 - **Severity:** High
