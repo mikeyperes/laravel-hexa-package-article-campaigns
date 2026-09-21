@@ -33,18 +33,22 @@ class HomepageCategorySearchPolicyTest extends TestCase
         )['matched']);
     }
 
-    public function test_plural_category_name_reuses_the_existing_singular_topic_vocabulary(): void
+    public function test_plural_category_name_derives_a_singular_manifest_term_without_vocabulary(): void
     {
         $terms = (new HomepageCategorySearchPolicy())->terms('Startups');
 
         $this->assertContains('startup', $terms);
-        $this->assertContains('founder', $terms);
-        $this->assertContains('venture capital', $terms);
+        $this->assertContains('startups', $terms);
+        $this->assertNotContains('venture capital', $terms);
     }
 
-    public function test_pharmaceuticals_category_accepts_a_source_about_a_clinical_cell_therapy_trial(): void
+    public function test_explicitly_injected_category_terms_are_supported_without_package_defaults(): void
     {
-        $search = new HomepageCategorySearchPolicy();
+        $semantics = require dirname(__DIR__, 2).'/resources/category-semantics.php';
+        $semantics['vocabulary']['pharmaceuticals'] = [
+            'pharmaceuticals', 'clinical trials', 'cell therapy',
+        ];
+        $search = new HomepageCategorySearchPolicy($semantics, []);
         $terms = $search->terms('Pharmaceuticals');
         $source = [
             'title' => 'FDA clears trial of dual-targeted CAR T-cell therapy for cancer',
@@ -70,20 +74,26 @@ class HomepageCategorySearchPolicyTest extends TestCase
         $this->assertTrue($intent['matched']);
     }
 
-    public function test_business_law_uses_legal_terms_instead_of_general_economy_terms(): void
+    public function test_manifest_evidence_stays_bound_to_the_category_instead_of_hidden_subject_defaults(): void
     {
         $terms = (new HomepageCategorySearchPolicy())->terms('Business Law');
 
-        $this->assertContains('corporate law', $terms);
-        $this->assertContains('regulation', $terms);
-        $this->assertContains('litigation', $terms);
+        $this->assertContains('business law', $terms);
+        $this->assertContains('business', $terms);
+        $this->assertContains('law', $terms);
         $this->assertNotContains('economy', $terms);
         $this->assertNotContains('interest rates', $terms);
     }
 
-    public function test_law_news_focus_rejects_economy_story_without_a_legal_subject(): void
+    public function test_publication_focus_requires_explicitly_injected_profile_data(): void
     {
-        $search = new HomepageCategorySearchPolicy();
+        $search = new HomepageCategorySearchPolicy(null, [[
+            'match' => '/\blaw news\b/',
+            'label' => 'law and courts',
+            'query_prefix' => '(law OR court)',
+            'terms' => ['law', 'legal', 'court'],
+            'surface' => 'headline',
+        ]]);
         $focus = $search->publicationFocus('Law News Day');
 
         $this->assertNotNull($focus);
@@ -146,8 +156,8 @@ class HomepageCategorySearchPolicyTest extends TestCase
                 5,
             ).'The governor briefly welcomed the new tourism campaign.',
         ]], [
-            ['name' => 'Travel', 'terms' => $search->terms('Travel')],
-            ['name' => 'Politics', 'terms' => $search->terms('Politics')],
+            ['name' => 'Travel', 'terms' => ['travel', 'tourism', 'airlines', 'hotels', 'destinations']],
+            ['name' => 'Politics', 'terms' => ['politics', 'government', 'legislation', 'governor', 'public policy']],
         ], 'Travel');
 
         $this->assertFalse($result['reclassified']);
@@ -163,7 +173,7 @@ class HomepageCategorySearchPolicyTest extends TestCase
             'text' => str_repeat('The governor and Legislature approved government spending in the state budget. ', 4),
         ]], [
             ['name' => 'Trending', 'terms' => ['government', 'business', 'travel']],
-            ['name' => 'Politics', 'terms' => $search->terms('Politics')],
+            ['name' => 'Politics', 'terms' => ['politics', 'government', 'legislation', 'governor', 'public policy']],
         ], 'Trending');
 
         $this->assertFalse($result['reclassified']);

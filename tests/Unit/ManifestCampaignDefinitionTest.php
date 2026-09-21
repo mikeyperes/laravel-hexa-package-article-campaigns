@@ -45,7 +45,7 @@ final class ManifestCampaignDefinitionTest extends TestCase
 
         $this->assertSame('parent_category_path', $lane['semantic_context']['source']);
         $this->assertSame('podcasts', $lane['semantic_context']['subject']);
-        $this->assertContains('podcast interview', $lane['terms']);
+        $this->assertContains('podcast', $lane['terms']);
         $this->assertNotContains('plugged in', $lane['terms']);
         $this->assertStringNotContainsString('plugged', strtolower(implode(' ', $lane['queries'])));
 
@@ -81,7 +81,7 @@ final class ManifestCampaignDefinitionTest extends TestCase
         $this->assertContains('security news', $lane['queries']);
     }
 
-    public function test_broad_publication_gets_no_mandatory_niche_focus_but_first_party_specialist_identity_does(): void
+    public function test_publication_identity_never_creates_a_hidden_niche_focus(): void
     {
         $categories = [
             $this->category(10, 'Business', 'business'),
@@ -102,8 +102,8 @@ final class ManifestCampaignDefinitionTest extends TestCase
 
         $this->assertArrayNotHasKey('publication_focus', $broad);
         $this->assertStringNotContainsString('celebrity', strtolower(implode(' ', $broad['categories'][0]['queries'])));
-        $this->assertSame('manifest_identity', $specialist['publication_focus']['source']);
-        $this->assertSame('headline', $specialist['publication_focus']['surface']);
+        $this->assertArrayNotHasKey('publication_focus', $specialist);
+        $this->assertContains('business law', $specialist['categories'][0]['terms']);
     }
 
     public function test_generic_section_inherits_specific_homepage_subjects_without_ambiguity_failure(): void
@@ -120,7 +120,7 @@ final class ManifestCampaignDefinitionTest extends TestCase
         $this->assertSame('manifest_evidence', $features['semantic_context']['source']);
         $this->assertSame('Features', $features['semantic_context']['subject']);
         $this->assertContains('business', $features['terms']);
-        $this->assertContains('podcast interview', $features['terms']);
+        $this->assertContains('podcast', $features['terms']);
         $this->assertNotContains('plugged in', $features['terms']);
         $this->assertNotEmpty($features['queries']);
     }
@@ -134,16 +134,16 @@ final class ManifestCampaignDefinitionTest extends TestCase
         ]));
         $pressReleases = collect($definition['categories'])->firstWhere('name', 'Press Releases');
 
-        $this->assertSame('category_vocabulary', $pressReleases['semantic_context']['source']);
+        $this->assertSame('manifest_evidence', $pressReleases['semantic_context']['source']);
         $this->assertContains('press release', $pressReleases['terms']);
-        $this->assertContains('company announcement', $pressReleases['terms']);
+        $this->assertNotContains('company announcement', $pressReleases['terms']);
         $this->assertNotContains('bitcoin', $pressReleases['terms']);
         $this->assertNotContains('blockchain', $pressReleases['terms']);
         $this->assertSame('press_release', $pressReleases['source_format']);
-        $this->assertContains('bitcoin', $pressReleases['context_terms']);
+        $this->assertContains('cryptocurrency', $pressReleases['context_terms']);
         $this->assertContains('blockchain', $pressReleases['context_terms']);
-        $this->assertContains('cryptocurrency press release', $pressReleases['queries']);
-        $this->assertContains('blockchain news release', $pressReleases['queries']);
+        $this->assertContains('cryptocurrency press releases', $pressReleases['queries']);
+        $this->assertContains('blockchain press release', $pressReleases['queries']);
         $this->assertNotContains('press release news', $pressReleases['queries']);
     }
 

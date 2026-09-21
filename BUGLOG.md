@@ -1,5 +1,24 @@
 # Campaign Bug Log — laravel-hexa-package-article-campaigns
 
+## CAMPAIGN-BUG-088 — Generic package embedded publication subject assumptions
+
+- **Severity:** High
+- **Status:** Patched 2026-09-21 15:39:52 EST in 1.1.26.
+- **Impact:** A new campaign could inherit one of 75 static category vocabularies
+  or 12 publication-focus profiles instead of being defined only by its own
+  first-party homepage manifest.
+- **Root cause:** The reusable search policy supported constructor injection but
+  silently loaded publication subject data from package resources when callers
+  supplied no configuration.
+- **Patch:** The package default now contains only application-neutral structural
+  semantics. Category terms compile from each manifest's label, slug,
+  description and Elementor section evidence; publication focus defaults to
+  none. Applications may still inject reviewed policy data explicitly.
+- **Guard:** The generic package must never ship publication names, niche
+  profiles, subject synonym tables or campaign-specific search vocabulary.
+
+---
+
 ## CAMPAIGN-BUG-070 — Exact word boundary wasted usable near-target drafts
 
 - **Severity:** High

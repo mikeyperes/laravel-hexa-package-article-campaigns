@@ -16,7 +16,11 @@ class HomepageCategorySearchPolicy
     public function __construct(?array $semantics = null, ?array $focusProfiles = null)
     {
         $this->semantics = $semantics ?? require dirname(__DIR__, 2).'/resources/category-semantics.php';
-        $this->focusProfiles = $focusProfiles ?? require dirname(__DIR__, 2).'/resources/publication-focus-profiles.php';
+        // Publication-specific vocabulary and focus profiles are policy input,
+        // not generic package defaults. New campaign definitions compile from
+        // their first-party manifest unless an application explicitly injects
+        // reviewed configuration here.
+        $this->focusProfiles = $focusProfiles ?? [];
     }
 
     public function isKnownCategoryName(string $name): bool
@@ -73,6 +77,9 @@ class HomepageCategorySearchPolicy
                 continue;
             }
             $terms = $this->knownTerms($subject);
+            if ($terms === [] && $this->hasStandaloneSubject($subject)) {
+                $terms = $this->termsForEvidence($subject, '', [], $segments[$index]);
+            }
             if ($terms !== []) {
                 return ['subject' => $subject, 'terms' => $terms];
             }
@@ -189,9 +196,17 @@ class HomepageCategorySearchPolicy
                 continue;
             }
             $terms[] = $normalized;
+            $singularSurface = Str::singular($normalized);
+            if ($singularSurface !== $normalized) {
+                $terms[] = $singularSurface;
+            }
             foreach (preg_split('/[^a-z0-9]+/', $normalized) ?: [] as $token) {
                 if (strlen($token) >= 3 && ! in_array($token, (array) ($this->semantics['stop_words'] ?? []), true)) {
                     $terms[] = $token;
+                    $singularToken = Str::singular($token);
+                    if ($singularToken !== $token) {
+                        $terms[] = $singularToken;
+                    }
                 }
             }
         }
