@@ -1,5 +1,24 @@
 # Campaign Bug Log — laravel-hexa-package-article-campaigns
 
+## CAMPAIGN-BUG-070 — Exact word boundary wasted usable near-target drafts
+
+- **Severity:** High
+- **Status:** Patched 2026-09-21 01:20:00 EST in 1.1.25.
+- **Impact:** A provider could return a complete draft only a few words below
+  the 450-word publication target, spend a second request correcting it, and
+  still lose the article at the same exact cutoff.
+- **Root cause:** One number served as both the generation target and an exact
+  acceptance boundary. The provider was also told to produce the shortest
+  acceptable draft, leaving no room for cleanup or tokenization variance.
+- **Patch:** The generic length policy now separates the publication target,
+  a bounded five-percent acceptance tolerance with a 350-word absolute floor,
+  and a 50-word generation cushion capped by the configured maximum.
+- **Guard:** Adapters must aim providers at the buffered target and evaluate
+  final output against the shared accepted minimum; they must not weaken the
+  absolute evidence floor or invent site-specific thresholds.
+
+---
+
 ## CAMPAIGN-BUG-062 — Numeric equivalence policy omitted qualified and derived values
 
 - **Severity:** High

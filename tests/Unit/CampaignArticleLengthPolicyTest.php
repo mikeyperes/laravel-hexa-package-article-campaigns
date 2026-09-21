@@ -16,5 +16,10 @@ final class CampaignArticleLengthPolicyTest extends TestCase
         $this->assertSame(450, $policy->minimumArticleWords(650));
         $this->assertSame(400, $policy->minimumSourceWords(650));
         $this->assertSame(350, $policy->minimumSourceWords(350));
+        $this->assertSame(427, $policy->minimumAcceptedArticleWords(650));
+        $this->assertSame(380, $policy->minimumAcceptedArticleWords(400));
+        $this->assertSame(350, $policy->minimumAcceptedArticleWords(350));
+        $this->assertSame(500, $policy->generationTargetMinimumWords(650, 950));
+        $this->assertSame(470, $policy->generationTargetMinimumWords(650, 470));
     }
 }
