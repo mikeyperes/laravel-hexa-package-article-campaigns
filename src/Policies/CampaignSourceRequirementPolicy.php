@@ -6,6 +6,18 @@ use hexa_package_article_campaigns\Discovery\HomepageCategoryPoolDefinition;
 
 final class CampaignSourceRequirementPolicy
 {
+    public function shouldRotateExhaustedHomepageLane(
+        array $resolved,
+        string $selectedCategory,
+        int $selectedLaneAvailable,
+        int $manifestAvailable,
+    ): bool {
+        return ($resolved['discovery_process'] ?? '') === HomepageCategoryPoolDefinition::TYPE
+            && trim($selectedCategory) !== ''
+            && $selectedLaneAvailable === 0
+            && $manifestAvailable > 0;
+    }
+
     public function replacementPoolExhausted(array $discovery): bool
     {
         $details = is_array($discovery['details'] ?? null) ? $discovery['details'] : [];

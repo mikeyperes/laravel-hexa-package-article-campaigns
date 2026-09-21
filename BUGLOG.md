@@ -1,5 +1,54 @@
 # Campaign Bug Log — laravel-hexa-package-article-campaigns
 
+## CAMPAIGN-BUG-062 — Numeric equivalence policy omitted qualified and derived values
+
+- **Severity:** High
+- **Status:** Patched 2026-09-21 01:00:56 EST in 1.1.24.
+- **Impact:** Application adapters could reject faithful rounded amounts and
+  exact differences between two source figures, or implement inconsistent
+  publication-specific exceptions.
+- **Root cause:** The generic campaign domain had no deterministic numeric
+  equivalence contract.
+- **Patch:** `CampaignNumericClaimPolicy` accepts explicitly qualified rounding
+  within one percent and exact same-scale subtraction only when difference
+  language appears beside the claimed value.
+- **Guard:** The policy never accepts an unqualified near value, cross-scale
+  arithmetic or a number merely because two unrelated source values can produce it.
+
+---
+
+## CAMPAIGN-BUG-061 — Headline vocabulary was conflated with publication fit
+
+- **Severity:** High
+- **Status:** Patched 2026-09-21 01:00:56 EST in 1.1.24.
+- **Impact:** Manifest-backed articles could be rejected after paid generation
+  even when category, source, body and publication-focus evidence all passed.
+- **Root cause:** The reusable domain exposed category relevance but no explicit
+  decision for when literal headline intent is redundant.
+- **Patch:** `CampaignPublicationFitPolicy` makes headline wording independent
+  from the four mandatory manifest-backed evidence boundaries.
+- **Guard:** Missing source, body, taxonomy or publication-focus evidence still
+  requires the normal headline-intent gate and cannot be bypassed.
+
+---
+
+## CAMPAIGN-BUG-060 — Source validation and lane exhaustion lacked generic policies
+
+- **Severity:** High
+- **Status:** Patched 2026-09-21 01:00:56 EST in 1.1.24.
+- **Impact:** One application-specific regex admitted video catalogues, while a
+  temporarily empty selected lane could stop a campaign with fresh candidates
+  elsewhere in the same approved manifest.
+- **Root cause:** Source-shape validation and lane-rotation decisions lived in
+  application flow instead of reusable, input-driven policies.
+- **Patch:** `CampaignSourceContentPolicy` rejects repeated media catalogues and
+  corrupt token streams, while `CampaignSourceRequirementPolicy` now authorizes
+  rotation only from an empty selected lane to stocked manifest-approved lanes.
+- **Guard:** These policies contain no site IDs, publication names, database
+  models or provider calls; the application remains the I/O adapter.
+
+---
+
 Permanent record of critical and high-severity article campaign bugs that
 involve this generic engine. Bug IDs are shared with the Publish app log, so
 `CAMPAIGN-BUG-003` means the same incident in both repositories.
