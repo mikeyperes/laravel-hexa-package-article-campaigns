@@ -10,8 +10,6 @@ final readonly class CampaignRunResult
         public string $state,
         public ?string $failureCode = null,
         public ?string $message = null,
-        public ?GeneratedArticle $article = null,
-        public ?DeliveryResult $delivery = null,
         public array $metadata = [],
     ) {}
 }

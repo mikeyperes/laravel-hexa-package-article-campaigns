@@ -1,5 +1,28 @@
 # Campaign Bug Log — laravel-hexa-package-article-campaigns
 
+## CAMPAIGN-BUG-091 — Parallel workflow contracts obscured the real campaign lifecycle
+
+- **Severity:** High
+- **Status:** Patched 2026-09-21 21:42:52 EST in 1.2.0; pending release.
+- **Impact:** The generic package exposed two orchestration shapes for one
+  lifecycle, so application code and tests could bind to compatibility ports
+  that production did not use. Mutable application settings could also be
+  resolved again during a retry instead of preserving the original operation.
+- **Root cause:** Historical three-port compatibility types remained beside the
+  actual four-stage workflow, and the domain had no versioned immutable run-
+  configuration value.
+- **Patch:** The package now has one `CampaignWorkflowPort` and one
+  `CampaignWorkflowOrchestrator`. The unused three-port adapter, its DTOs and
+  its contracts were removed. `CampaignConfigurationSnapshot` canonicalizes,
+  fingerprints and verifies application-neutral run input for adapters to
+  preserve across retries.
+- **Guard:** Keep one production workflow contract. Every retry must consume
+  the original verified configuration snapshot; never add a second lifecycle,
+  a compatibility execution engine, publication models, site IDs or provider
+  clients to this package.
+
+---
+
 ## CAMPAIGN-BUG-088 — Generic package embedded publication subject assumptions
 
 - **Severity:** High
@@ -41,7 +64,9 @@
 ## CAMPAIGN-BUG-062 — Numeric equivalence policy omitted qualified and derived values
 
 - **Severity:** High
-- **Status:** Patched 2026-09-21 01:00:56 EST in 1.1.24.
+- **Status:** Superseded 2026-09-21 21:42:52 EST in 1.2.0. The policy had no
+  production caller and was removed with the retired claim-by-claim enforcement
+  path; this historical entry is retained.
 - **Impact:** Application adapters could reject faithful rounded amounts and
   exact differences between two source figures, or implement inconsistent
   publication-specific exceptions.

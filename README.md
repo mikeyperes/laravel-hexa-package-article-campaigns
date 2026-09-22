@@ -11,9 +11,9 @@ or WordPress delivery code. Consuming applications supply those through
 adapters.
 
 `CampaignWorkflowOrchestrator` is the single reusable lifecycle coordinator:
-prepare, discover, generate, deliver. The original three-port
-`CampaignOrchestrator` remains source compatible by adapting those ports into
-that same coordinator; it does not maintain a second execution sequence.
+prepare, discover, generate, deliver. Consuming applications implement the one
+`CampaignWorkflowPort`; the package does not maintain a parallel compatibility
+workflow.
 
 ## Input-only campaign setup
 

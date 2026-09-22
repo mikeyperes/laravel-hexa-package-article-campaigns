@@ -124,7 +124,13 @@ class HomepageCategorySearchPolicyTest extends TestCase
         ]];
         $categories = [
             ['name' => 'Travel', 'terms' => ['travel', 'tourism', 'airlines', 'hotels', 'destinations']],
-            ['name' => 'Politics', 'terms' => ['politics', 'election', 'government', 'legislation', 'Congress']],
+            // These are the terms compiled from this fixture's first-party
+            // manifest evidence. The generic package deliberately provides no
+            // hidden Politics vocabulary.
+            ['name' => 'Politics', 'terms' => [
+                'politics', 'government', 'legislature', 'legislators',
+                'state budget', 'public funds', 'public policy',
+            ]],
             ['name' => 'Luxury', 'terms' => ['luxury', 'luxury brands', 'yachts', 'luxury hotels', 'luxury cars']],
         ];
 

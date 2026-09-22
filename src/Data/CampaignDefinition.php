@@ -205,6 +205,7 @@ final readonly class CampaignDefinition
                     'category_vocabulary',
                     'parent_category_path',
                     'manifest_evidence',
+                    'structural_source_format',
                 ], true)
                 || trim((string) ($category['semantic_context']['subject'] ?? '')) === ''
                 || ! is_array($category['terms'] ?? null) || $category['terms'] === []

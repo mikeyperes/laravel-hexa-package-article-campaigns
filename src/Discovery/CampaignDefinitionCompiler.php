@@ -187,6 +187,16 @@ final class CampaignDefinitionCompiler
     private function categorySubject(array $category): array
     {
         $name = trim((string) ($category['name'] ?? ''));
+        $sourceFormat = $this->searchPolicy->sourceFormat($name);
+        if ($sourceFormat !== null) {
+            $formatTerms = $this->searchPolicy->sourceFormatTerms($sourceFormat);
+            if ($formatTerms !== []) {
+                return [
+                    'terms' => $formatTerms,
+                    'context' => ['source' => 'structural_source_format', 'subject' => $name],
+                ];
+            }
+        }
         $knownTerms = $this->searchPolicy->knownTerms($name);
         if ($knownTerms !== []) {
             return [

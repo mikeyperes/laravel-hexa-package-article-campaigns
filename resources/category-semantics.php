@@ -17,6 +17,14 @@ return [
     'source_format_sections' => [
         'press release' => 'press_release',
     ],
+    // Format language is structural, not publication subject vocabulary.
+    // The subject still comes exclusively from sibling manifest categories.
+    'source_format_terms' => [
+        'press_release' => [
+            'press releases', 'press release', 'news releases', 'news release',
+            'announces', 'announced', 'announcement', 'launches', 'unveils',
+        ],
+    ],
     'stop_words' => [
         'a', 'an', 'and', 'article', 'articles', 'at', 'by', 'for', 'from',
         'in', 'into', 'news', 'of', 'on', 'or', 'the', 'to', 'with',

@@ -2,20 +2,11 @@
 
 namespace Tests\Unit;
 
-use hexa_package_article_campaigns\Contracts\ArticleDeliveryPort;
-use hexa_package_article_campaigns\Contracts\ArticleGenerationPort;
-use hexa_package_article_campaigns\Contracts\SourceDiscoveryPort;
-use hexa_package_article_campaigns\Data\CampaignRunContext;
-use hexa_package_article_campaigns\Data\DeliveryResult;
-use hexa_package_article_campaigns\Data\GeneratedArticle;
-use hexa_package_article_campaigns\Data\SourceBatch;
 use hexa_package_article_campaigns\Discovery\HomepageCategoryPoolDefinition;
 use hexa_package_article_campaigns\Discovery\HomepageCategorySearchPolicy;
 use hexa_package_article_campaigns\Discovery\PublicationManifestMapper;
-use hexa_package_article_campaigns\Orchestration\CampaignOrchestrator;
 use hexa_package_article_campaigns\Policies\CampaignNegativeTopicMatcher;
 use hexa_package_article_campaigns\Policies\CampaignSourceRelevancePolicy;
-use hexa_package_article_campaigns\State\CampaignRunStateMachine;
 use PHPUnit\Framework\TestCase;
 use RuntimeException;
 
@@ -128,13 +119,13 @@ final class ManifestCampaignDefinitionTest extends TestCase
     public function test_press_release_format_keeps_format_vocabulary_instead_of_inheriting_every_site_topic(): void
     {
         $definition = $this->map($this->manifest([
-            $this->category(45, 'Cryptocurrency', 'cryptocurrency'),
-            $this->category(100, 'Blockchain', 'blockchain'),
+            $this->category(45, 'Cryptocurrency', 'cryptocurrency', 'Bitcoin, cryptocurrency markets and digital assets.'),
+            $this->category(100, 'Blockchain', 'blockchain', 'Blockchain technology, distributed ledgers and token networks.'),
             $this->category(171, 'Press Releases', 'press-releases'),
         ]));
         $pressReleases = collect($definition['categories'])->firstWhere('name', 'Press Releases');
 
-        $this->assertSame('manifest_evidence', $pressReleases['semantic_context']['source']);
+        $this->assertSame('structural_source_format', $pressReleases['semantic_context']['source']);
         $this->assertContains('press release', $pressReleases['terms']);
         $this->assertNotContains('company announcement', $pressReleases['terms']);
         $this->assertNotContains('bitcoin', $pressReleases['terms']);
@@ -150,8 +141,8 @@ final class ManifestCampaignDefinitionTest extends TestCase
     public function test_press_release_source_requires_release_format_and_publication_subject_evidence(): void
     {
         $definition = $this->map($this->manifest([
-            $this->category(45, 'Cryptocurrency', 'cryptocurrency'),
-            $this->category(100, 'Blockchain', 'blockchain'),
+            $this->category(45, 'Cryptocurrency', 'cryptocurrency', 'Bitcoin, cryptocurrency markets and digital assets.'),
+            $this->category(100, 'Blockchain', 'blockchain', 'Blockchain technology, distributed ledgers and token networks.'),
             $this->category(171, 'Press Releases', 'press-releases'),
         ]));
         $resolved = [
@@ -215,8 +206,18 @@ final class ManifestCampaignDefinitionTest extends TestCase
     public function test_complete_source_is_reclassified_before_lane_rejection_and_unrelated_companion_is_removed(): void
     {
         $definition = $this->map($this->manifest([
-            $this->category(1496, 'Travel', 'travel'),
-            $this->category(9542, 'Politics', 'politics'),
+            $this->category(
+                1496,
+                'Travel',
+                'travel',
+                'Tourism, airlines, hotels, travel packages and destinations.',
+            ),
+            $this->category(
+                9542,
+                'Politics',
+                'politics',
+                'Government, legislature, public policy, state budget and public funds.',
+            ),
         ]));
         $sources = [
             [
@@ -243,7 +244,7 @@ final class ManifestCampaignDefinitionTest extends TestCase
         $this->assertSame('different_manifest_category', $decision['rejected_sources'][0]['reason']);
     }
 
-    public function test_partial_collection_stops_before_generation_or_delivery(): void
+    public function test_partial_collection_is_rejected_before_an_application_can_start_generation(): void
     {
         $manifest = $this->manifest([$this->category(10, 'Business', 'business')]);
         $manifest['homepage']['collection_status'] = 'partial';
@@ -266,60 +267,17 @@ final class ManifestCampaignDefinitionTest extends TestCase
             'context' => ['taxonomy' => 'category', 'operator' => 'XOR'],
         ]];
         $manifest = $this->fingerprint($manifest);
-        $calls = (object) ['generation' => 0, 'delivery' => 0, 'error' => null];
-        $mapper = $this->mapper();
-        $orchestrator = new CampaignOrchestrator(
-            new class($mapper, $manifest, $calls) implements SourceDiscoveryPort {
-                public function __construct(
-                    private PublicationManifestMapper $mapper,
-                    private array $manifest,
-                    private object $calls,
-                ) {}
-
-                public function discover(CampaignRunContext $context): SourceBatch
-                {
-                    try {
-                        $this->mapper->map($this->manifest, 'https://publication.test/');
-                    } catch (RuntimeException $exception) {
-                        $this->calls->error = $exception->getMessage();
-                        return new SourceBatch([], [['reason' => $exception->getMessage()]]);
-                    }
-
-                    return new SourceBatch([['title' => 'unexpected']]);
-                }
-            },
-            new class($calls) implements ArticleGenerationPort {
-                public function __construct(private object $calls) {}
-
-                public function generate(CampaignRunContext $context, SourceBatch $sources): GeneratedArticle
-                {
-                    $this->calls->generation++;
-                    throw new RuntimeException('Generation must not run.');
-                }
-            },
-            new class($calls) implements ArticleDeliveryPort {
-                public function __construct(private object $calls) {}
-
-                public function deliver(CampaignRunContext $context, GeneratedArticle $article): DeliveryResult
-                {
-                    $this->calls->delivery++;
-                    throw new RuntimeException('Delivery must not run.');
-                }
-            },
-            new CampaignRunStateMachine(),
-        );
-
-        $result = $orchestrator->run(new CampaignRunContext('campaign', 'publication'));
-
-        $this->assertFalse($result->successful);
-        $this->assertSame('source_pool_exhausted', $result->failureCode);
-        $this->assertSame(0, $calls->generation);
-        $this->assertSame(0, $calls->delivery);
-        $this->assertStringContainsString('collection is partial', (string) $calls->error);
-        $this->assertStringContainsString('query_scope_not_statically_resolved', (string) $calls->error);
-        $this->assertStringContainsString('"widget_type":"loop-grid"', (string) $calls->error);
-        $this->assertStringContainsString('"operator":"XOR"', (string) $calls->error);
-        $this->assertStringContainsString('No AI was called', (string) $calls->error);
+        try {
+            $this->mapper()->map($manifest, 'https://publication.test/');
+            $this->fail('A partial manifest must be rejected before an application adapter can spend.');
+        } catch (RuntimeException $exception) {
+            $message = $exception->getMessage();
+            $this->assertStringContainsString('collection is partial', $message);
+            $this->assertStringContainsString('query_scope_not_statically_resolved', $message);
+            $this->assertStringContainsString('"widget_type":"loop-grid"', $message);
+            $this->assertStringContainsString('"operator":"XOR"', $message);
+            $this->assertStringContainsString('No AI was called', $message);
+        }
     }
 
     public function test_resolved_query_widget_without_category_terms_does_not_invalidate_other_evidence(): void

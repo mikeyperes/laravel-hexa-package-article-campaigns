@@ -518,25 +518,7 @@ class CampaignSourceRelevancePolicy
      */
     public function negativeTopics(array $resolved): array
     {
-        $baseline = [
-            'gambling',
-            'betting',
-            'best bets',
-            'sportsbook',
-            'casino',
-            'wagering',
-            'odds',
-            'daily fantasy',
-            'dfs',
-            'sports picks',
-            'betting guide',
-            'adult content',
-            'sex-related content',
-            'pornography',
-            'escort',
-        ];
-
-        return $this->negativeTopicMatcher->normalizeTopics(array_merge($baseline, (array) ($resolved['negative_topics'] ?? [])));
+        return $this->negativeTopicMatcher->normalizeTopics((array) ($resolved['negative_topics'] ?? []));
     }
 
     public function filterNegativeTopics(array $sourceTexts, array $negativeTopics, callable $emit): array

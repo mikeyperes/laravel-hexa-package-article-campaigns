@@ -436,6 +436,16 @@ class HomepageCategorySearchPolicy
         return null;
     }
 
+    /** @return array<int, string> */
+    public function sourceFormatTerms(string $format): array
+    {
+        return $this->normalizedTerms((array) data_get(
+            $this->semantics,
+            'source_format_terms.'.trim($format),
+            [],
+        ));
+    }
+
     /**
      * Keep source-format evidence separate from the publication subject. A
      * press release is eligible only when both surfaces are present.
