@@ -1,5 +1,29 @@
 # Campaign Bug Log — laravel-hexa-package-article-campaigns
 
+## CAMPAIGN-BUG-094 — Headline-confirmed manifest sources were rejected as off-category
+
+- **Severity:** High
+- **Status:** Patched 2026-09-22 00:02:11 EST in 1.2.1; pending release.
+- **Impact:** Rich Reporter operation 6894 extracted a complete 721-word source
+  selected for the Lifestyle lane, then rejected it even though `Lifestyle`
+  appeared in both the headline and body and no other homepage category
+  decisively displaced it. The run spent no AI credits, but it exhausted 164
+  seconds on further source checks and published nothing.
+- **Root cause:** `HomepageCategorySearchPolicy::matches()` counted body
+  occurrences separately from its headline signal. A headline match lowered
+  the body threshold from three to two, so one headline match plus one complete-
+  body confirmation still failed. The dominant-category resolver preserved the
+  selected lane while the strict matcher rejected that same result.
+- **Patch:** One complete-body occurrence now confirms an exact headline
+  category match. Sources without a headline signal still require three body
+  occurrences, and the existing decisive multi-concept reclassification can
+  still move a source to a better-supported homepage category.
+- **Guard:** A category present in both headline and body must pass its selected
+  manifest lane. One body-only incidental mention must still fail, and a
+  decisively dominant sibling category must still win before generation.
+
+---
+
 ## CAMPAIGN-BUG-091 — Parallel workflow contracts obscured the real campaign lifecycle
 
 - **Severity:** High

@@ -233,7 +233,11 @@ class HomepageCategorySearchPolicy
             }
             // A passing reference in an unrelated article is not its subject.
             // Discovery metadata remains broad; full text must substantiate it.
-            return $mentions >= ($titleMatch ? 2 : 3);
+            // CRITICAL — see BUGLOG.md CAMPAIGN-BUG-094. A category named in
+            // both the headline and complete body has two independent surfaces
+            // of evidence; requiring two additional body mentions rejected the
+            // same category that the complete-source resolver preserved.
+            return $mentions >= ($titleMatch ? 1 : 3);
         }
         $text = Str::lower(Str::ascii(strip_tags(implode(' ', array_map(
             static fn (string $key): string => (string) ($source[$key] ?? ''),

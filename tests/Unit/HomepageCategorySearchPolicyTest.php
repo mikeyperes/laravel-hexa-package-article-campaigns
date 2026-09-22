@@ -85,6 +85,39 @@ class HomepageCategorySearchPolicyTest extends TestCase
         $this->assertNotContains('interest rates', $terms);
     }
 
+    public function test_headline_category_signal_needs_only_one_complete_body_confirmation(): void
+    {
+        $search = new HomepageCategorySearchPolicy();
+        $terms = ['lifestyle', 'wellness', 'food', 'home design', 'culture'];
+
+        $this->assertTrue($search->matches([
+            'title' => 'Actor Seen With Lifestyle Coach During Grocery Run',
+            'text' => 'The actor was photographed shopping with a lifestyle coach before returning home.',
+        ], $terms));
+        $this->assertFalse($search->matches([
+            'title' => 'Actor Seen During Grocery Run',
+            'text' => 'The report briefly identifies one companion as a lifestyle coach.',
+        ], $terms));
+
+        $policy = new CampaignSourceRelevancePolicy(new CampaignNegativeTopicMatcher(), $search);
+        $decision = $policy->resolveAndFilterHomepageSources([[
+            'title' => 'Actor Seen With Lifestyle Coach During Grocery Run',
+            'text' => 'The actor was photographed shopping with a lifestyle coach before returning home.',
+        ]], [
+            'forced_category' => 'Lifestyle',
+            'homepage_pool' => ['categories' => [[
+                'id' => 7,
+                'name' => 'Lifestyle',
+                'slug' => 'lifestyle',
+                'terms' => $terms,
+            ]]],
+        ]);
+
+        $this->assertFalse($decision['reclassified']);
+        $this->assertCount(1, $decision['accepted_sources']);
+        $this->assertSame([], $decision['rejected_sources']);
+    }
+
     public function test_publication_focus_requires_explicitly_injected_profile_data(): void
     {
         $search = new HomepageCategorySearchPolicy(null, [[
