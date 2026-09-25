@@ -1,5 +1,26 @@
 # Campaign Bug Log — laravel-hexa-package-article-campaigns
 
+## CAMPAIGN-BUG-108 — Category terms split into generic single words matched unrelated stories
+
+- **Severity:** High
+- **Status:** Patched 2026-09-25 18:40:00 EST.
+- **Impact:** Hexa Cloud (#76) drew a Steamboat benefit concert for its
+  Content Delivery Network lane on 2026-09-25 because Snow Bowl was
+  "hosting" it; its CDN pool also held game-patch "content" stories. Any
+  manifest with an unfamiliar multi-word category could match off-topic news.
+- **Root cause:** `HomepageCategorySearchPolicy::termsForEvidence()` split
+  every evidence surface into single words. Multi-word names ("content",
+  "delivery", "network") and the shared homepage section "Deep Dives &
+  Hosting Guides" ("deep", "dives", "hosting", "guides") became match terms.
+- **Patch:** Whole phrases are kept. Single words come only from a one-word
+  surface or the category description. A plain name of three or more words
+  also adds its initials (CDN). Existing campaigns keep their compiled terms
+  until their manifest is rescanned.
+- **Guard:** `CRITICAL — see BUGLOG.md CAMPAIGN-BUG-108` in
+  `HomepageCategorySearchPolicy::termsForEvidence()`.
+
+---
+
 ## CAMPAIGN-BUG-107 — A video page without article text was accepted as a source
 
 - **Severity:** High

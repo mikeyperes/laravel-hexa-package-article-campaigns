@@ -190,7 +190,8 @@ class HomepageCategorySearchPolicy
             ...array_map(static fn (mixed $section): string => trim((string) $section), $sections),
         ]));
         $terms = [];
-        foreach ($evidence as $surface) {
+        $descriptionIndex = trim($description) === '' ? null : array_search(trim($description), $evidence, true);
+        foreach ($evidence as $index => $surface) {
             $normalized = trim(preg_replace('/\s+/', ' ', Str::lower(Str::ascii(strip_tags($surface)))) ?? '');
             if ($normalized === '') {
                 continue;
@@ -200,13 +201,29 @@ class HomepageCategorySearchPolicy
             if ($singularSurface !== $normalized) {
                 $terms[] = $singularSurface;
             }
-            foreach (preg_split('/[^a-z0-9]+/', $normalized) ?: [] as $token) {
-                if (strlen($token) >= 3 && ! in_array($token, (array) ($this->semantics['stop_words'] ?? []), true)) {
-                    $terms[] = $token;
-                    $singularToken = Str::singular($token);
-                    if ($singularToken !== $token) {
-                        $terms[] = $singularToken;
-                    }
+            $stopWords = (array) ($this->semantics['stop_words'] ?? []);
+            $tokens = array_values(array_filter(
+                preg_split('/[^a-z0-9]+/', $normalized) ?: [],
+                static fn (string $token): bool => strlen($token) >= 3 && ! in_array($token, $stopWords, true),
+            ));
+            // CRITICAL — see BUGLOG.md CAMPAIGN-BUG-108. Single words split
+            // from a multi-word name or a shared homepage section ("content",
+            // "network", "hosting", "guides") matched unrelated stories. Only a
+            // one-word surface or the category description contributes single
+            // words; a 3+ word name also contributes its initials (CDN).
+            if (count($tokens) !== 1 && $index !== $descriptionIndex) {
+                // Initials only when every word counts ("Law and Legal
+                // Services" would give a misleading LLS).
+                if ($index === 0 && count($tokens) >= 3 && count($tokens) === count(explode(' ', $normalized))) {
+                    $terms[] = implode('', array_map(static fn (string $token): string => $token[0], $tokens));
+                }
+                continue;
+            }
+            foreach ($tokens as $token) {
+                $terms[] = $token;
+                $singularToken = Str::singular($token);
+                if ($singularToken !== $token) {
+                    $terms[] = $singularToken;
                 }
             }
         }
