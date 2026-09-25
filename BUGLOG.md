@@ -1,5 +1,26 @@
 # Campaign Bug Log — laravel-hexa-package-article-campaigns
 
+## CAMPAIGN-BUG-107 — A video page without article text was accepted as a source
+
+- **Severity:** High
+- **Status:** Patched 2026-09-25 17:55:00 EST.
+- **Impact:** On 2026-09-25 Her Forward article 7827 was sourced from a Yahoo
+  video page. Its extracted 1,077 words were a feed of unrelated headlines
+  plus the clip's one-sentence summary, so the slot had to be declined. An
+  API-writer run would have paid for a refusal or an unsupported article.
+- **Root cause:** `CampaignSourceContentPolicy` rejected video pages only
+  when they looked like a clip catalogue (running times). A video page that
+  extracts as an unrelated news feed passed.
+- **Patch:** A page whose URL path contains `/video/` or `/videos/` is
+  rejected (`video_page_without_article_text`) when under a third of its
+  100-word chunks mention at least two headline words. Measured on real
+  sources: the Yahoo page 0.18; normal articles 0.64–0.80. Short pages and
+  generic headlines are not judged.
+- **Guard:** `CRITICAL — see BUGLOG.md CAMPAIGN-BUG-107` in
+  `CampaignSourceContentPolicy::inspect()`.
+
+---
+
 ## CAMPAIGN-BUG-094 — Headline-confirmed manifest sources were rejected as off-category
 
 - **Severity:** High

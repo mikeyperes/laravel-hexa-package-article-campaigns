@@ -44,8 +44,16 @@ final class CampaignSourceContentPolicy
         $suspiciousRatio = $wordCount > 0 ? $suspiciousCount / $wordCount : 0.0;
         $corrupted = $suspiciousCount >= 12 && $suspiciousRatio >= 0.12;
 
+        $headlineCoverage = $this->headlineCoverage($title, $tokens);
+        // CRITICAL — see BUGLOG.md CAMPAIGN-BUG-107. A video page can extract
+        // as a feed of unrelated headlines with the clip's one-line summary.
+        $offTopicVideoPage = preg_match('~/videos?/~i', (string) parse_url($url, PHP_URL_PATH)) === 1
+            && $headlineCoverage !== null
+            && $headlineCoverage < 0.34;
+
         $reason = match (true) {
             $videoCatalogue => 'video_catalogue_not_article',
+            $offTopicVideoPage => 'video_page_without_article_text',
             $corrupted => 'encoded_or_corrupted_text',
             default => null,
         };
@@ -59,8 +67,41 @@ final class CampaignSourceContentPolicy
                 'dated_cards' => $datedCardCount,
                 'suspicious_tokens' => $suspiciousCount,
                 'suspicious_ratio' => round($suspiciousRatio, 4),
+                'headline_coverage' => $headlineCoverage === null ? 'n/a' : round($headlineCoverage, 2),
             ],
         ];
+    }
+
+    /**
+     * Share of 100-word chunks that mention at least two headline words, or
+     * null when the page is too short or the headline too generic to judge.
+     *
+     * @param  array<int, string>  $tokens
+     */
+    private function headlineCoverage(string $title, array $tokens): ?float
+    {
+        $terms = array_values(array_unique(array_filter(
+            preg_split('/[^a-z0-9]+/u', mb_strtolower($title)) ?: [],
+            static fn (string $term): bool => strlen($term) > 3,
+        )));
+        $chunks = array_chunk($tokens, 100);
+        if (count($terms) < 3 || count($chunks) < 3) {
+            return null;
+        }
+
+        $covered = 0;
+        foreach ($chunks as $chunk) {
+            $haystack = ' '.mb_strtolower(implode(' ', $chunk)).' ';
+            $hits = 0;
+            foreach ($terms as $term) {
+                if (preg_match('/\b'.preg_quote($term, '/').'\b/u', $haystack) === 1 && ++$hits >= 2) {
+                    $covered++;
+                    break;
+                }
+            }
+        }
+
+        return $covered / count($chunks);
     }
 
     private function plain(string $value): string
