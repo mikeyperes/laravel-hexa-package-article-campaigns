@@ -1,5 +1,24 @@
 # Campaign Bug Log — laravel-hexa-package-article-campaigns
 
+## CAMPAIGN-BUG-109 — A paywall teaser was accepted as a source
+
+- **Severity:** High
+- **Status:** Patched 2026-09-25 17:50:00 EST.
+- **Impact:** Breaking 9 To 5 article 7840 was sourced on 2026-09-25 from a
+  paywalled Law.com page. Only two sentences of the story extracted; the rest
+  was the subscription notice and links to other stories, so the slot had to
+  be declined.
+- **Root cause:** `CampaignSourceContentPolicy` had no check for subscription
+  walls, and the extracted word count counted the wall and link list.
+- **Patch:** A page showing a subscription-wall phrase is rejected
+  (`paywall_teaser_not_article`) when under a third of its 100-word chunks
+  mention the headline (0.33 here; full articles with a login prompt measured
+  0.64 or more).
+- **Guard:** `CRITICAL — see BUGLOG.md CAMPAIGN-BUG-109` in
+  `CampaignSourceContentPolicy::inspect()`.
+
+---
+
 ## CAMPAIGN-BUG-108 — Category terms split into generic single words matched unrelated stories
 
 - **Severity:** High

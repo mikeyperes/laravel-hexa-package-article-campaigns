@@ -51,9 +51,16 @@ final class CampaignSourceContentPolicy
             && $headlineCoverage !== null
             && $headlineCoverage < 0.34;
 
+        // CRITICAL — see BUGLOG.md CAMPAIGN-BUG-109. A paywalled page can
+        // extract as a two-sentence teaser plus links to other stories.
+        $paywallTeaser = preg_match('/subscription is required|already a subscriber|subscribe to continue|to continue reading|log in to keep reading|this content is (?:only )?(?:available )?(?:for|to) subscribers/i', $text) === 1
+            && $headlineCoverage !== null
+            && $headlineCoverage < 0.34;
+
         $reason = match (true) {
             $videoCatalogue => 'video_catalogue_not_article',
             $offTopicVideoPage => 'video_page_without_article_text',
+            $paywallTeaser => 'paywall_teaser_not_article',
             $corrupted => 'encoded_or_corrupted_text',
             default => null,
         };
