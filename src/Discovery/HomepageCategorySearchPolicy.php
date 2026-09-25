@@ -210,13 +210,9 @@ class HomepageCategorySearchPolicy
             // from a multi-word name or a shared homepage section ("content",
             // "network", "hosting", "guides") matched unrelated stories. Only a
             // one-word surface or the category description contributes single
-            // words; a 3+ word name also contributes its initials (CDN).
+            // words. Initials are not added: "CDN" also names Cascadia Daily
+            // News and matched its letters page.
             if (count($tokens) !== 1 && $index !== $descriptionIndex) {
-                // Initials only when every word counts ("Law and Legal
-                // Services" would give a misleading LLS).
-                if ($index === 0 && count($tokens) >= 3 && count($tokens) === count(explode(' ', $normalized))) {
-                    $terms[] = implode('', array_map(static fn (string $token): string => $token[0], $tokens));
-                }
                 continue;
             }
             foreach ($tokens as $token) {

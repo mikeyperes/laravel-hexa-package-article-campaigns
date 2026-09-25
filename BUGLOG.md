@@ -32,9 +32,10 @@
   "delivery", "network") and the shared homepage section "Deep Dives &
   Hosting Guides" ("deep", "dives", "hosting", "guides") became match terms.
 - **Patch:** Whole phrases are kept. Single words come only from a one-word
-  surface or the category description. A plain name of three or more words
-  also adds its initials (CDN). Existing campaigns keep their compiled terms
-  until their manifest is rescanned.
+  surface or the category description. Existing campaigns keep their compiled
+  terms until their manifest is rescanned. (A first version also added a
+  3+ word name's initials; "CDN" then matched a Cascadia Daily News letters
+  page on 2026-09-25, so initials were removed in 1.2.5.)
 - **Guard:** `CRITICAL — see BUGLOG.md CAMPAIGN-BUG-108` in
   `HomepageCategorySearchPolicy::termsForEvidence()`.
 
