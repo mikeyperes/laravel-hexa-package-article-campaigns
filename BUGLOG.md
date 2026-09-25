@@ -35,7 +35,9 @@
   surface or the category description. Existing campaigns keep their compiled
   terms until their manifest is rescanned. (A first version also added a
   3+ word name's initials; "CDN" then matched a Cascadia Daily News letters
-  page on 2026-09-25, so initials were removed in 1.2.5.)
+  page on 2026-09-25, so initials were removed in 1.2.5.) Homepage chrome
+  labels such as "Load More" and "Latest" are skipped (1.2.6): Block Editorial
+  (#74) lanes matched an Air Force leadership story through them.
 - **Guard:** `CRITICAL — see BUGLOG.md CAMPAIGN-BUG-108` in
   `HomepageCategorySearchPolicy::termsForEvidence()`.
 

@@ -193,7 +193,9 @@ class HomepageCategorySearchPolicy
         $descriptionIndex = trim($description) === '' ? null : array_search(trim($description), $evidence, true);
         foreach ($evidence as $index => $surface) {
             $normalized = trim(preg_replace('/\s+/', ' ', Str::lower(Str::ascii(strip_tags($surface)))) ?? '');
-            if ($normalized === '') {
+            // CRITICAL — see BUGLOG.md CAMPAIGN-BUG-108. Homepage buttons
+            // such as "Load More" or "Latest" are page chrome, not subjects.
+            if ($normalized === '' || preg_match('/^(?:load more|show more|see more|read more|view more|view all|see all|more|latest|all|home|news|top stories|trending)$/', $normalized) === 1) {
                 continue;
             }
             $terms[] = $normalized;
