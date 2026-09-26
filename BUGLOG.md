@@ -1,5 +1,27 @@
 # Campaign Bug Log — laravel-hexa-package-article-campaigns
 
+## CAMPAIGN-BUG-119 — A homepage group heading became a search term on every lane
+
+- **Severity:** High
+- **Status:** Patched 2026-09-26 18:48:00 EST; released in 1.2.7.
+- **Impact:** Hexa Cloud (#76) compiled "deep dives & hosting guides" into
+  all four lanes. Two of each lane's three or four searches were spent on
+  "deep dives & hosting guides news", which returns no category story; on
+  2026-09-26 the quic.cloud and Shared Hosting retries found no source.
+- **Root cause:** `CampaignDefinitionCompiler::categoryTerms()` passed every
+  homepage section heading to `termsForEvidence()`. A heading shared by
+  several categories names the group on the homepage, not one category's
+  subject. CAMPAIGN-BUG-108 stopped splitting it into words but kept the
+  phrase.
+- **Patch:** A section heading that appears on more than one category is left
+  out of that category's terms. Headings unique to one category still count.
+  Existing campaigns keep their compiled terms until their manifest is
+  rescanned.
+- **Guard:** `CRITICAL — see BUGLOG.md CAMPAIGN-BUG-119` in
+  `CampaignDefinitionCompiler::categoryTerms()`.
+
+---
+
 ## CAMPAIGN-BUG-109 — A paywall teaser was accepted as a source
 
 - **Severity:** High

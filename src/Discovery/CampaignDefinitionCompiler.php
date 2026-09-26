@@ -59,10 +59,11 @@ final class CampaignDefinitionCompiler
         $specific = [];
         $specificAnchors = [];
         $subjects = [];
+        $sharedSections = $this->sharedSections($categories);
         foreach ($categories as $index => $category) {
             $name = (string) ($category['name'] ?? '');
             if (! $this->searchPolicy->generic($name)) {
-                $subjects[$index] = $this->categorySubject($category);
+                $subjects[$index] = $this->categorySubject($category, $sharedSections);
                 if ($this->searchPolicy->sourceFormat($name) === null) {
                     $specific = array_merge($specific, $subjects[$index]['terms']);
                     $specificAnchors[] = (string) ($subjects[$index]['terms'][0] ?? '');
@@ -89,7 +90,7 @@ final class CampaignDefinitionCompiler
             $name = trim((string) ($category['name'] ?? ''));
             $generic = $this->searchPolicy->generic($name);
             $sourceFormat = $this->searchPolicy->sourceFormat($name);
-            $subject = $generic ? null : ($subjects[$index] ?? $this->categorySubject($category));
+            $subject = $generic ? null : ($subjects[$index] ?? $this->categorySubject($category, $sharedSections));
             $terms = $generic
                 ? array_slice($specific, 0, 15)
                 : $subject['terms'];
@@ -161,16 +162,20 @@ final class CampaignDefinitionCompiler
         return array_values(array_unique($queries));
     }
 
-    /** @param array<string, mixed> $category */
-    private function categoryTerms(array $category): array
+    /**
+     * @param array<string, mixed> $category
+     * @param array<int, string> $sharedSections normalized headings that group several categories
+     */
+    private function categoryTerms(array $category, array $sharedSections): array
     {
-        $sections = array_map(
-            static fn (array $source): string => (string) ($source['section'] ?? ''),
-            array_filter(
-                (array) data_get($category, 'homepage_evidence.sources', []),
-                'is_array',
-            ),
-        );
+        // CRITICAL — see BUGLOG.md CAMPAIGN-BUG-119. A homepage heading that
+        // groups several categories ("Deep Dives & Hosting Guides") names the
+        // group, not this category's subject; as a term it became a wasted
+        // search on every lane.
+        $sections = array_values(array_filter(
+            $this->evidenceSections($category),
+            fn (string $section): bool => ! in_array($this->normalizeEvidence($section), $sharedSections, true),
+        ));
 
         return $this->searchPolicy->termsForEvidence(
             (string) ($category['name'] ?? ''),
@@ -182,9 +187,40 @@ final class CampaignDefinitionCompiler
 
     /**
      * @param array<string, mixed> $category
+     * @return array<int, string>
+     */
+    private function evidenceSections(array $category): array
+    {
+        return array_values(array_filter(array_map(
+            static fn (array $source): string => trim((string) ($source['section'] ?? '')),
+            array_filter((array) data_get($category, 'homepage_evidence.sources', []), 'is_array'),
+        )));
+    }
+
+    /**
+     * Normalized homepage section headings that appear on more than one category.
+     *
+     * @param array<int, array<string, mixed>> $categories
+     * @return array<int, string>
+     */
+    private function sharedSections(array $categories): array
+    {
+        $owners = [];
+        foreach ($categories as $index => $category) {
+            foreach ($this->evidenceSections($category) as $section) {
+                $owners[$this->normalizeEvidence($section)][$index] = true;
+            }
+        }
+
+        return array_keys(array_filter($owners, static fn (array $categoryIndexes): bool => count($categoryIndexes) > 1));
+    }
+
+    /**
+     * @param array<string, mixed> $category
+     * @param array<int, string> $sharedSections
      * @return array{terms:array<int,string>,context:array{source:string,subject:string}}
      */
-    private function categorySubject(array $category): array
+    private function categorySubject(array $category, array $sharedSections): array
     {
         $name = trim((string) ($category['name'] ?? ''));
         $sourceFormat = $this->searchPolicy->sourceFormat($name);
@@ -216,10 +252,7 @@ final class CampaignDefinitionCompiler
             ];
         }
 
-        $sections = array_values(array_filter(array_map(
-            static fn (array $source): string => trim((string) ($source['section'] ?? '')),
-            array_filter((array) data_get($category, 'homepage_evidence.sources', []), 'is_array'),
-        )));
+        $sections = $this->evidenceSections($category);
         $description = trim((string) ($category['description'] ?? ''));
         $normalizedName = $this->normalizeEvidence($name);
         $hasDistinctSection = collect($sections)->contains(
@@ -233,7 +266,7 @@ final class CampaignDefinitionCompiler
         }
 
         return [
-            'terms' => $this->categoryTerms($category),
+            'terms' => $this->categoryTerms($category, $sharedSections),
             'context' => ['source' => 'manifest_evidence', 'subject' => $name],
         ];
     }
