@@ -3,6 +3,8 @@
 namespace hexa_package_article_campaigns\Policies;
 
 use Illuminate\Support\Str;
+use hexa_package_article_campaigns\Contracts\SourceCategoryClassifier;
+use hexa_package_article_campaigns\Data\SourceClassification;
 use hexa_package_article_campaigns\Discovery\HomepageCategoryPoolDefinition;
 use hexa_package_article_campaigns\Discovery\HomepageCategorySearchPolicy;
 
@@ -13,8 +15,121 @@ class CampaignSourceRelevancePolicy
     public function __construct(
         private CampaignNegativeTopicMatcher $negativeTopicMatcher,
         ?HomepageCategorySearchPolicy $homepageCategorySearchPolicy = null,
+        private ?SourceCategoryClassifier $classifier = null,
     ) {
         $this->homepageCategorySearchPolicy = $homepageCategorySearchPolicy ?? new HomepageCategorySearchPolicy();
+    }
+
+    /**
+     * The model classification of one extracted source against the campaign's
+     * current manifest, or null when no classifier is bound or it cannot
+     * answer. Word matching remains only as that fallback.
+     *
+     * @param array<string, mixed> $source
+     * @param array<string, mixed> $resolved
+     */
+    public function classifySource(array $source, array $resolved): ?SourceClassification
+    {
+        if ($this->classifier === null || ! $this->usesCurrentHomepageDefinition($resolved)) {
+            return null;
+        }
+        $categories = $this->homepageCategories($resolved);
+        if ($categories === [] || trim((string) ($source['text'] ?? '')) === '') {
+            return null;
+        }
+
+        $pool = (array) ($resolved['homepage_pool'] ?? []);
+        $homepage = (string) ($pool['homepage_url'] ?? '');
+
+        return $this->classifier->classify($source, $categories, [
+            'name' => trim((string) ($resolved['site_name'] ?? $resolved['publication_name'] ?? '')) ?: (string) parse_url($homepage, PHP_URL_HOST),
+            'homepage_url' => $homepage,
+            'focus' => (string) data_get($pool, 'publication_focus.label', ''),
+        ]);
+    }
+
+    /**
+     * One structured decision per source replaces category word matching:
+     * the primary source's classification sets the category, and every
+     * companion must classify into the same category and fit the publication.
+     *
+     * @param array<int, array<string, mixed>> $sourceTexts
+     * @param array<string, mixed> $resolved
+     * @return array<string, mixed>|null
+     */
+    private function classifiedHomepageDecision(array $sourceTexts, array $resolved, ?callable $emit): ?array
+    {
+        if ($sourceTexts === []) {
+            return null;
+        }
+        $primaryKey = array_key_first($sourceTexts);
+        $primary = $this->classifySource((array) $sourceTexts[$primaryKey], $resolved);
+        if ($primary === null) {
+            return null;
+        }
+
+        $selected = trim((string) ($resolved['forced_category'] ?? ''));
+        $categories = $this->homepageCategories($resolved);
+        $resolvedCategory = $primary->category ?? $selected;
+        $accepted = [];
+        $rejected = [];
+        $sourceDecisions = [];
+
+        foreach ($sourceTexts as $index => $source) {
+            $classification = $index === $primaryKey ? $primary : $this->classifySource((array) $source, $resolved);
+            $matches = $primary->fitsPublication && $primary->category !== null && (
+                $classification !== null
+                    ? $classification->accepts($resolvedCategory)
+                    : $this->lexicalSourceMatchesHomepageCategory((array) $source, $resolved, $resolvedCategory)
+            );
+            $sourceDecisions[$index] = [
+                'decided_by' => $classification !== null ? 'model_classification' : 'word_match_fallback',
+                'classification' => $classification?->toArray(),
+                'resolved_category' => $classification?->category,
+                'accepted' => $matches,
+            ];
+            if ($matches) {
+                $accepted[] = $source;
+                continue;
+            }
+
+            $reason = $classification !== null && ! $classification->fitsPublication
+                ? 'does_not_fit_publication'
+                : 'different_manifest_category';
+            $rejected[] = [
+                'source' => $source,
+                'reason' => $reason,
+                'resolved_category' => (string) ($classification?->category ?? ''),
+            ];
+            if ($emit !== null) {
+                $emit('warning', 'Dropped source after classification ('.$reason.'): '.Str::limit((string) ($source['title'] ?? $source['url'] ?? 'Untitled'), 90), [
+                    'stage' => 'extraction',
+                    'substage' => 'source_classification_dropped',
+                    'selected_category' => $selected,
+                    'resolved_category' => $resolvedCategory,
+                    'source_category' => $classification?->category,
+                    'details' => (string) ($classification?->reason ?? ''),
+                    'url' => $source['url'] ?? null,
+                ]);
+            }
+        }
+
+        $supported = $primary->category !== null && strcasecmp($primary->category, $selected) === 0;
+
+        return [
+            'selected_category' => $selected,
+            'resolved_category' => $resolvedCategory,
+            'selected_category_supported' => $supported,
+            'reclassified' => $primary->category !== null && ! $supported,
+            'reason' => 'model_classification',
+            'scores' => [],
+            'classification' => $primary->toArray(),
+            'selected_category_id' => $this->categoryId($categories, $selected),
+            'resolved_category_id' => $this->categoryId($categories, $resolvedCategory),
+            'accepted_sources' => $accepted,
+            'rejected_sources' => $rejected,
+            'source_decisions' => $sourceDecisions,
+        ];
     }
 
     public function filterRelevant(array $sourceTexts, array $resolved, callable $emit): array
@@ -160,6 +275,11 @@ class CampaignSourceRelevancePolicy
      */
     public function resolveAndFilterHomepageSources(array $sourceTexts, array $resolved, ?callable $emit = null): array
     {
+        $classified = $this->classifiedHomepageDecision($sourceTexts, $resolved, $emit);
+        if ($classified !== null) {
+            return $classified;
+        }
+
         $selected = trim((string) ($resolved['forced_category'] ?? ''));
         $categories = $this->homepageCategories($resolved);
         $aggregateDecision = $this->homepageCategorySearchPolicy->resolveDominantCategory(
@@ -235,6 +355,22 @@ class CampaignSourceRelevancePolicy
      * @param array<string, mixed> $resolved
      */
     public function sourceMatchesHomepageCategory(array $source, array $resolved, string $category): bool
+    {
+        $classification = $this->classifySource($source, $resolved);
+        if ($classification !== null) {
+            return $classification->accepts($category);
+        }
+
+        return $this->lexicalSourceMatchesHomepageCategory($source, $resolved, $category);
+    }
+
+    /**
+     * Word-matching fallback used only when model classification is unavailable.
+     *
+     * @param array<string, mixed> $source
+     * @param array<string, mixed> $resolved
+     */
+    private function lexicalSourceMatchesHomepageCategory(array $source, array $resolved, string $category): bool
     {
         $terms = [];
         $selectedLane = null;
@@ -344,6 +480,14 @@ class CampaignSourceRelevancePolicy
             }
 
             foreach ($sourceTexts as $source) {
+                $classification = $this->classifySource((array) $source, $resolved);
+                if ($classification !== null) {
+                    if (! $classification->accepts($category)) {
+                        return false;
+                    }
+
+                    continue;
+                }
                 $sourceDecision = $this->homepageCategorySearchPolicy->resolveDominantCategory(
                     [$source],
                     $this->homepageCategories($resolved),

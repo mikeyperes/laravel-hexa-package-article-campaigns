@@ -1,5 +1,30 @@
 # Campaign Bug Log — laravel-hexa-package-article-campaigns
 
+## CAMPAIGN-BUG-129 — Word matching decided source category and publication fit
+
+- **Severity:** High
+- **Status:** Patched 2026-09-26 22:45 EST; released in 1.3.0 with
+  laravel-hexa-app-publish 18.25.0.
+- **Impact:** Category and publication-fit decisions were made by matching
+  words in titles, snippets and the first 1,600 characters. They blocked good
+  drafts after payment (Publication fit was the largest failure class) and let
+  bad ones through: a Fashion Institute of Technology speaker-series press
+  release was published under Cryptocurrency on blockeditorial.com (article
+  7931). Thirty fixes in four days (CAMPAIGN-BUG-105 to 113 and 117 to 120)
+  tuned the same vocabulary rules.
+- **Root cause:** Titles and word lists cannot tell what a story is about or
+  whether it belongs on a publication.
+- **Patch:** `SourceCategoryClassifier` (contract), `SourceClassification` and
+  `SourceClassificationPrompt`: one structured model decision per source
+  returns category, publication fit, subject and reason, validated against the
+  manifest's category names. `CampaignSourceRelevancePolicy` uses it for
+  `resolveAndFilterHomepageSources()`, `sourceMatchesHomepageCategory()` and
+  `allSourcesMatchResolvedIntent()`; the word-matching rules, including the
+  CAMPAIGN-BUG-032, 094, 105, 108 and 119 guards, now run only when no
+  classification is available. `CampaignGateRegistry` declares every gate's
+  stage, cost position (pre/post spend) and action (block, repair, warn).
+- **Guard:** `CampaignSourceRelevancePolicy::classifiedHomepageDecision()`.
+
 ## CAMPAIGN-BUG-119 — A homepage group heading became a search term on every lane
 
 - **Severity:** High
