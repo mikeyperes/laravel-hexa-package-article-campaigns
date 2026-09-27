@@ -24,6 +24,11 @@
   classification is available. `CampaignGateRegistry` declares every gate's
   stage, cost position (pre/post spend) and action (block, repair, warn).
 - **Guard:** `CampaignSourceRelevancePolicy::classifiedHomepageDecision()`.
+- **Follow-up (1.4.0, 2026-09-27):** the same classification also sets
+  `fits_publication` false for buying guides, product reviews and comparisons,
+  "best"/"top" product lists, deals pages and sponsored content, and for a
+  story that repeats one of the publication's recent articles (passed as
+  `recent_titles`; Publish CAMPAIGN-BUG-124). No extra model call.
 
 ## CAMPAIGN-BUG-119 — A homepage group heading became a search term on every lane
 

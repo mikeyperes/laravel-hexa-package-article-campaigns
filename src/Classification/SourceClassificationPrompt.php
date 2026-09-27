@@ -23,7 +23,8 @@ final class SourceClassificationPrompt
             'Decide what the story is mainly about, not which words it happens to contain.',
             'Choose the single best category from the list, or null when none genuinely fits.',
             'The category list is the publication\'s own editorial scope. A story whose main subject clearly belongs in one of its topical categories fits the publication.',
-            'fits_publication is false only when: no category fits; the story reaches a category only through a passing mention; the story contradicts the stated publication focus; or it fits only a format category (such as Press Release, Features or Guides) while its topic matches none of the publication\'s topical categories.',
+            'fits_publication is false only when: no category fits; the story reaches a category only through a passing mention; the story contradicts the stated publication focus; it fits only a format category (such as Press Release, Features or Guides) while its topic matches none of the publication\'s topical categories; the source is a buying guide, product review or comparison, "best" or "top" product list, deals page or sponsored content rather than a news story; or it reports the same event, announcement, lawsuit, study or statistic as one of the publication\'s recent articles, even under another headline.',
+            'When it repeats a recent article, say which one in the reason.',
             'Return only one JSON object, no prose: {"category": "<exact category name or null>", "fits_publication": true|false, "subject": "<main subject in under 12 words>", "reason": "<one sentence>"}',
         ]);
     }
@@ -41,6 +42,14 @@ final class SourceClassificationPrompt
         }
         if ($this->filled($publication['focus'] ?? null)) {
             $lines[] = 'Publication focus: '.$this->oneLine((string) $publication['focus']);
+        }
+
+        $recent = array_values(array_filter(array_map(fn ($title): string => $this->oneLine((string) $title), (array) ($publication['recent_titles'] ?? []))));
+        if ($recent !== []) {
+            $lines[] = 'Recent articles:';
+            foreach ($recent as $title) {
+                $lines[] = '- '.$title;
+            }
         }
 
         $lines[] = 'Categories:';
