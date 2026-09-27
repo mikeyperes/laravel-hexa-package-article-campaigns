@@ -17,11 +17,17 @@ final class CampaignMediaAudiencePolicy
         ],
     ];
 
+    /** Search words that ask for people; an object or place scene has no audience. */
+    private const PEOPLE = '\\b(?:people|persons?|entrepreneurs?|founders?|leaders?|executives?|workers?|employees?|staff|teams?|owners?|professionals?|students?|audience|crowd|speakers?|panel|colleagues?|customers?|artists?|attendees?|members?)\\b';
+
     public function qualifySearchTerm(string $searchTerm, string $articleTitle): string
     {
         $searchTerm = trim($searchTerm);
         $audience = $this->requiredAudience($articleTitle);
-        if ($searchTerm === '' || $audience === null || $this->matches($searchTerm, self::AUDIENCES[$audience]['required'])) {
+        // CRITICAL — see BUGLOG.md CAMPAIGN-BUG-140. Only a search for people
+        // takes the article's audience; "stack of books" must stay books.
+        if ($searchTerm === '' || $audience === null || ! $this->matches($searchTerm, self::PEOPLE)
+            || $this->matches($searchTerm, self::AUDIENCES[$audience]['required'])) {
             return $searchTerm;
         }
 

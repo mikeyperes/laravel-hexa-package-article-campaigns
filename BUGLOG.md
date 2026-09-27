@@ -1,5 +1,24 @@
 # Campaign Bug Log — laravel-hexa-package-article-campaigns
 
+## CAMPAIGN-BUG-140 — Photo searches for objects were forced to show women
+
+- **Severity:** High
+- **Status:** Fixed in 1.4.2, 2026-09-27.
+- **Symptom:** On Her Forward article 7982, the inline search "stack of books"
+  returned balanced rocks and a woman lying on a bed; "woman holding book"
+  returned couples holding hands. Earlier Her Forward photos showed the same
+  pattern ("women tequila bottle glass" on 7874).
+- **Root cause:** `CampaignMediaAudiencePolicy::qualifySearchTerm()` (from
+  CAMPAIGN-BUG-047) prefixed "women" to every photo search whenever the
+  headline mentioned women, including object and place scenes.
+- **Patch:** only a search that asks for people (founders, workers, speakers,
+  an audience and similar) takes the audience word; object and place scenes
+  are searched as written. Candidate rejection is unchanged.
+- **Guard:** `CRITICAL — see BUGLOG.md CAMPAIGN-BUG-140` in
+  `CampaignMediaAudiencePolicy::qualifySearchTerm()`.
+
+---
+
 ## CAMPAIGN-BUG-137 — The registry declared repair, but no gate used it
 
 - **Severity:** High
