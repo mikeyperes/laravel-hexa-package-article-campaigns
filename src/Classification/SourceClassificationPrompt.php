@@ -46,7 +46,7 @@ final class SourceClassificationPrompt
 
         $recent = array_values(array_filter(array_map(fn ($title): string => $this->oneLine((string) $title), (array) ($publication['recent_titles'] ?? []))));
         if ($recent !== []) {
-            $lines[] = 'Recent articles:';
+            $lines[] = 'Recent articles on this publication that may cover the same story:';
             foreach ($recent as $title) {
                 $lines[] = '- '.$title;
             }
