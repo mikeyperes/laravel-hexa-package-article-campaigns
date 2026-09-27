@@ -1,5 +1,19 @@
 # Campaign Bug Log — laravel-hexa-package-article-campaigns
 
+## CAMPAIGN-BUG-137 — The registry declared repair, but no gate used it
+
+- **Severity:** High
+- **Status:** Patched 2026-09-27 04:16:22 EST; released in 1.4.1 with laravel-hexa-app-publish 18.28.0.
+- **Symptom:** Paid drafts that failed only an excerpt or image check were
+  thrown away and the campaign paid for a new article.
+- **Patch:** `complete_excerpt`, `featured_image_relevance` and
+  `inline_image_relevance` are `repair` gates, and `repairs()` tells the
+  application which failed gates it may fix without AI before redelivering.
+- **Guard:** `CampaignPaidDraftResumerTest::test_the_registry_marks_exactly_the_repairable_gates`
+  in laravel-hexa-app-publish.
+
+---
+
 ## CAMPAIGN-BUG-129 — Word matching decided source category and publication fit
 
 - **Severity:** High

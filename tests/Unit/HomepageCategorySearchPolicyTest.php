@@ -79,8 +79,9 @@ class HomepageCategorySearchPolicyTest extends TestCase
         $terms = (new HomepageCategorySearchPolicy())->terms('Business Law');
 
         $this->assertContains('business law', $terms);
-        $this->assertContains('business', $terms);
-        $this->assertContains('law', $terms);
+        // CAMPAIGN-BUG-108: a category name is never split into generic single words.
+        $this->assertNotContains('business', $terms);
+        $this->assertNotContains('law', $terms);
         $this->assertNotContains('economy', $terms);
         $this->assertNotContains('interest rates', $terms);
     }
