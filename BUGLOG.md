@@ -1,5 +1,22 @@
 # Campaign Bug Log — laravel-hexa-package-article-campaigns
 
+## CAMPAIGN-BUG-141 — Pool writing rules moved to the article contract
+
+- **Severity:** High
+- **Status:** Fixed in 1.4.3, 2026-09-28.
+- **Symptom:** `HomepageCategoryPoolDefinition` wrote a long pool instruction
+  block into `ai_instructions` that repeated the writer's accuracy rules in
+  different words.
+- **Root cause:** Each layer carried its own copy of the writing rules.
+- **Patch:** The pool no longer writes rules; the application's
+  `CampaignArticleContract` owns them once. The pool still blanks the campaign's
+  legacy `ai_prompt`, `headline_rules`, `ai_instructions` and
+  `operator_instructions`, so an old topic ban (for example "only celebrity
+  wealth") never reaches a homepage-pool article (CAMPAIGN-BUG-034).
+- **Guard:** `CRITICAL — see BUGLOG.md CAMPAIGN-BUG-141` in
+  `HomepageCategoryPoolDefinition::applySettings()`; app tests
+  `HomepageCategoryPoolTest` check the rules through the contract.
+
 ## CAMPAIGN-BUG-140 — Photo searches for objects were forced to show women
 
 - **Severity:** High
