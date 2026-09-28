@@ -1,5 +1,32 @@
 # Campaign Bug Log — laravel-hexa-package-article-campaigns
 
+## CAMPAIGN-BUG-147 — The source pool still chose categories by title words
+
+- **Severity:** High
+- **Status:** Fixed in laravel-hexa-app-publish 18.30.4 and laravel-hexa-package-article-campaigns 1.4.4, 2026-09-27 21:38:32 EST.
+- **Symptom:** A campaign-58 pool refresh rejected 38 of 58 category checks with
+  `category_mismatch`, `publication_subject_mismatch` or
+  `source_format_mismatch`, decided by whether a title contained a category's
+  words. "Two lenders agree to merge" could never enter Business.
+- **Impact:** Good sources never reached the pre-spend classifier
+  (CAMPAIGN-BUG-129), and stories that merely used a category word filled the
+  pool, so paid runs started from weaker candidates.
+- **Root cause:** CAMPAIGN-BUG-129 moved the full-text decision to a model, but
+  the pool still screened search results with title word matching.
+- **Patch:** `SourceCategoryClassifier::screen()` judges a query's fresh
+  results by headline and snippet in one batched model call (40 per call,
+  cached per candidate and manifest). The pool assigns each candidate the one
+  category the model picks and drops those that do not fit the publication.
+  Word matching remains only for when the model cannot answer. The refresh
+  reports `screened` instead of a fixed `ai_calls: 0`. Repeat stories are
+  still judged against the full text.
+- **Guard:** `CRITICAL — see BUGLOG.md CAMPAIGN-BUG-147` in
+  `CampaignSourcePoolService::screen()` and
+  `CampaignSourceClassifierService::screen()`; `CampaignPoolScreeningTest`,
+  `SourceScreeningPromptTest`.
+
+---
+
 ## CAMPAIGN-BUG-141 — Pool writing rules moved to the article contract
 
 - **Severity:** High
