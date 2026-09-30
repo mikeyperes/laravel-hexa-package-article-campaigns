@@ -14,8 +14,13 @@ return [
         'from the ground up',
     ],
     'evergreen_sections' => ['knowledge base', 'resources', 'guides', 'tutorials', 'how to'],
+    // CRITICAL — see BUGLOG.md CAMPAIGN-BUG-153. A podcast section names a
+    // medium, not a subject: "podcast news" returns celebrity, sports and
+    // politics episodes. Like a press release, it pairs with the
+    // publication's own topical lanes.
     'source_format_sections' => [
         'press release' => 'press_release',
+        'podcast' => 'podcast',
     ],
     // Format language is structural, not publication subject vocabulary.
     // The subject still comes exclusively from sibling manifest categories.
@@ -23,6 +28,9 @@ return [
         'press_release' => [
             'press releases', 'press release', 'news releases', 'news release',
             'announces', 'announced', 'announcement', 'launches', 'unveils',
+        ],
+        'podcast' => [
+            'podcast', 'podcasts', 'podcast episode', 'podcast interview',
         ],
     ],
     'stop_words' => [

@@ -1,5 +1,47 @@
 # Campaign Bug Log — laravel-hexa-package-article-campaigns
 
+## CAMPAIGN-BUG-153 — Podcast lanes searched the bare medium, not the publication topic
+
+- **Severity:** High
+- **Status:** Fixed in laravel-hexa-package-article-campaigns 1.4.5 and laravel-hexa-app-publish 18.33.7, 2026-09-30 14:32:09 EST.
+- **Symptom:** Smartech Daily (campaign 59) queue item 19 failed five times on
+  2026-09-30. The "Plugged In" lane (`/category/podcasts/plugged-in/`) drew
+  celebrity gossip (article 8017), a TV recap podcast (8018), a Gaza media
+  interview (8019) and a Mothman podcast (8020) from queries such as
+  "podcast conversation news"; the writer declined each. BlockTelegraph
+  (campaign 60) "Podcasts" searched "podcasts news" and pulled any podcast story.
+- **Impact:** A publication's podcast section filled its pool with off-topic
+  stories whenever the pre-spend classifier (CAMPAIGN-BUG-147) could not
+  answer, and wasted every retry of the slot. The fifth attempt (8021) drew
+  military "security" news through a stale Security lane compiled from an
+  older manifest.
+- **Root cause:** A podcast names a medium, not a subject. CAMPAIGN-BUG-048
+  compiled the Plugged In child into its parent's word "podcasts", and the
+  compiler, the pool's word fallback and the relevance fallback resolved a
+  lane's source format by its own name only, so neither lane was paired with
+  the publication's topic. The pool classifier has returned nothing since
+  2026-09-27 because the Anthropic API credit balance is exhausted, so every
+  candidate went through that fallback.
+- **Patch:** `podcast` is a structural source format like `press_release`.
+  `HomepageCategorySearchPolicy::laneSourceFormat()` resolves a lane's format
+  from its stored `source_format`, its name or the nearest parent section in
+  its category URL. The compiler, `sourceFormatContextTerms()`,
+  `resolveDominantCategory()`, `CampaignSourceRelevancePolicy` and the app's
+  `CampaignSourcePoolService::candidateRejection()` use it, so a podcast lane
+  searches "technology podcast", "blockchain podcasts" and similar, and its
+  word fallback requires both a podcast term and a sibling topic term. Podcast
+  lanes no longer feed their medium into the Features or Press Release
+  context. Existing campaigns take the new queries on a manifest rescan; their
+  word fallback applies the pairing immediately.
+- **Guard:** `CRITICAL — see BUGLOG.md CAMPAIGN-BUG-153` in
+  `resources/category-semantics.php`,
+  `HomepageCategorySearchPolicy::laneSourceFormat()`,
+  `CampaignDefinitionCompiler::compileCategories()` and the app's
+  `CampaignSourcePoolService::candidateRejection()`;
+  `ManifestCampaignDefinitionTest::test_podcast_lane_pairs_the_medium_with_the_publication_topic`.
+
+---
+
 ## CAMPAIGN-BUG-147 — The source pool still chose categories by title words
 
 - **Severity:** High

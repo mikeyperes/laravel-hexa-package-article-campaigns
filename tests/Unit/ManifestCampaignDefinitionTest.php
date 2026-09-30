@@ -34,8 +34,9 @@ final class ManifestCampaignDefinitionTest extends TestCase
         $definition = $this->map($this->manifest([$category]));
         $lane = $definition['categories'][0];
 
-        $this->assertSame('parent_category_path', $lane['semantic_context']['source']);
-        $this->assertSame('podcasts', $lane['semantic_context']['subject']);
+        // CAMPAIGN-BUG-153: a podcast child is a podcast-format lane.
+        $this->assertSame('structural_source_format', $lane['semantic_context']['source']);
+        $this->assertSame('podcast', $lane['source_format']);
         $this->assertContains('podcast', $lane['terms']);
         $this->assertNotContains('plugged in', $lane['terms']);
         $this->assertStringNotContainsString('plugged', strtolower(implode(' ', $lane['queries'])));
@@ -111,9 +112,41 @@ final class ManifestCampaignDefinitionTest extends TestCase
         $this->assertSame('manifest_evidence', $features['semantic_context']['source']);
         $this->assertSame('Features', $features['semantic_context']['subject']);
         $this->assertContains('business', $features['terms']);
-        $this->assertContains('podcast', $features['terms']);
+        // CAMPAIGN-BUG-153: a podcast lane is a format, not a site topic.
+        $this->assertNotContains('podcast', $features['terms']);
         $this->assertNotContains('plugged in', $features['terms']);
         $this->assertNotEmpty($features['queries']);
+    }
+
+    public function test_podcast_lane_pairs_the_medium_with_the_publication_topic(): void
+    {
+        $pluggedIn = $this->category(632, 'Plugged In', 'plugged-in');
+        $pluggedIn['url'] = 'https://publication.test/category/podcasts/plugged-in/';
+        $definition = $this->map($this->manifest([
+            $this->category(269, 'Technology', 'technology'),
+            $this->category(100, 'Blockchain', 'blockchain'),
+            $pluggedIn,
+            $this->category(120, 'Podcasts', 'podcasts'),
+        ]));
+        $search = new HomepageCategorySearchPolicy();
+
+        foreach (['Plugged In', 'Podcasts'] as $name) {
+            $lane = collect($definition['categories'])->firstWhere('name', $name);
+            $this->assertSame('podcast', $lane['source_format'], $name);
+            $this->assertSame('podcast', $search->laneSourceFormat($lane), $name);
+            $this->assertNotContains('podcast news', $lane['queries'], $name);
+            foreach ($lane['queries'] as $query) {
+                $this->assertMatchesRegularExpression('/^(technology|blockchain) podcasts?$/', $query, $name);
+            }
+            $this->assertNotContains('podcast', $lane['context_terms'], $name);
+        }
+
+        $gossip = ['title' => 'Mothman gets national spotlight in new Atlas Obscura podcast episode', 'url' => 'https://news.example/mothman'];
+        $onTopic = ['title' => 'Blockchain founders explain token audits in a new podcast episode', 'url' => 'https://news.example/blockchain-podcast'];
+        $lane = collect($definition['categories'])->firstWhere('name', 'Plugged In');
+        $context = $search->sourceFormatContextTerms($lane, $definition['categories']);
+        $this->assertFalse($search->matchesSourceFormat($gossip, $lane['terms']) && $search->matches($gossip, $context));
+        $this->assertTrue($search->matchesSourceFormat($onTopic, $lane['terms']) && $search->matches($onTopic, $context));
     }
 
     public function test_press_release_format_keeps_format_vocabulary_instead_of_inheriting_every_site_topic(): void

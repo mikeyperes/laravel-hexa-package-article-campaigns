@@ -291,7 +291,7 @@ class HomepageCategorySearchPolicy
                 static fn (mixed $term): string => trim((string) $term),
                 array_merge((array) ($category['terms'] ?? []), $this->terms($name)),
             ))));
-            $sourceFormat = $this->sourceFormat($name);
+            $sourceFormat = $this->laneSourceFormat($category);
             $contextTerms = $sourceFormat === null
                 ? []
                 : $this->sourceFormatContextTerms($category, $categories);
@@ -455,6 +455,41 @@ class HomepageCategorySearchPolicy
         return null;
     }
 
+    /**
+     * The source format of one compiled or manifest lane: its stored format,
+     * its own name, or the nearest parent section in its category URL.
+     *
+     * CRITICAL — see BUGLOG.md CAMPAIGN-BUG-153. `/category/podcasts/plugged-in/`
+     * is a podcast lane even though "Plugged In" names no format. Resolving the
+     * format by name alone searched and matched the bare medium ("podcast
+     * news"), so any celebrity or politics episode entered a technology pool.
+     *
+     * @param array<string, mixed> $lane
+     */
+    public function laneSourceFormat(array $lane): ?string
+    {
+        $stored = trim((string) ($lane['source_format'] ?? ''));
+        if ($stored !== '' && $this->sourceFormatTerms($stored) !== []) {
+            return $stored;
+        }
+        $format = $this->sourceFormat((string) ($lane['name'] ?? ''));
+        if ($format !== null) {
+            return $format;
+        }
+
+        $path = (string) (parse_url(trim((string) ($lane['homepage_link'] ?? $lane['url'] ?? '')), PHP_URL_PATH) ?? '');
+        $parents = array_values(array_filter(explode('/', trim($path, '/'))));
+        array_pop($parents);
+        foreach (array_reverse($parents) as $segment) {
+            $format = $this->sourceFormat(str_replace('-', ' ', rawurldecode($segment)));
+            if ($format !== null) {
+                return $format;
+            }
+        }
+
+        return null;
+    }
+
     /** @return array<int, string> */
     public function sourceFormatTerms(string $format): array
     {
@@ -483,7 +518,7 @@ class HomepageCategorySearchPolicy
         $context = [];
         foreach ($categories as $candidate) {
             $name = trim((string) ($candidate['name'] ?? ''));
-            if ($name === '' || $this->generic($name) || $this->sourceFormat($name) !== null) {
+            if ($name === '' || $this->generic($name) || $this->laneSourceFormat($candidate) !== null) {
                 continue;
             }
             $context = array_merge(

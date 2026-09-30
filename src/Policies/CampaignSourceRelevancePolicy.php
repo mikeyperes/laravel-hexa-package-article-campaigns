@@ -395,7 +395,9 @@ class CampaignSourceRelevancePolicy
             break;
         }
 
-        $sourceFormat = $this->homepageCategorySearchPolicy->sourceFormat($category);
+        $sourceFormat = $selectedLane !== null
+            ? $this->homepageCategorySearchPolicy->laneSourceFormat($selectedLane)
+            : $this->homepageCategorySearchPolicy->sourceFormat($category);
         if ($sourceFormat === null) {
             $categoryMatches = $this->homepageCategorySearchPolicy->matches(
                 $source,

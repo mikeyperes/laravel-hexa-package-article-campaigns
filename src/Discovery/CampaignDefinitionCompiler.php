@@ -64,7 +64,7 @@ final class CampaignDefinitionCompiler
             $name = (string) ($category['name'] ?? '');
             if (! $this->searchPolicy->generic($name)) {
                 $subjects[$index] = $this->categorySubject($category, $sharedSections);
-                if ($this->searchPolicy->sourceFormat($name) === null) {
+                if ($this->searchPolicy->laneSourceFormat($category) === null) {
                     $specific = array_merge($specific, $subjects[$index]['terms']);
                     $specificAnchors[] = (string) ($subjects[$index]['terms'][0] ?? '');
                 }
@@ -89,7 +89,10 @@ final class CampaignDefinitionCompiler
         foreach ($categories as $index => &$category) {
             $name = trim((string) ($category['name'] ?? ''));
             $generic = $this->searchPolicy->generic($name);
-            $sourceFormat = $this->searchPolicy->sourceFormat($name);
+            // CRITICAL — see BUGLOG.md CAMPAIGN-BUG-153. A lane under a format
+            // section (a podcast child) pairs the format with the publication's
+            // topical lanes instead of searching the bare medium.
+            $sourceFormat = $this->searchPolicy->laneSourceFormat($category);
             $subject = $generic ? null : ($subjects[$index] ?? $this->categorySubject($category, $sharedSections));
             $terms = $generic
                 ? array_slice($specific, 0, 15)
@@ -223,7 +226,7 @@ final class CampaignDefinitionCompiler
     private function categorySubject(array $category, array $sharedSections): array
     {
         $name = trim((string) ($category['name'] ?? ''));
-        $sourceFormat = $this->searchPolicy->sourceFormat($name);
+        $sourceFormat = $this->searchPolicy->laneSourceFormat($category);
         if ($sourceFormat !== null) {
             $formatTerms = $this->searchPolicy->sourceFormatTerms($sourceFormat);
             if ($formatTerms !== []) {
