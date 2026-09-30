@@ -149,6 +149,44 @@ final class ManifestCampaignDefinitionTest extends TestCase
         $this->assertTrue($search->matchesSourceFormat($onTopic, $lane['terms']) && $search->matches($onTopic, $context));
     }
 
+    public function test_facet_lane_pairs_with_the_subject_the_publication_name_declares(): void
+    {
+        $definition = $this->map($this->manifest([
+            $this->category(5328, 'Brands', 'brands'),
+            $this->category(5326, 'Golf', 'golf'),
+            $this->category(5331, 'Travel', 'travel'),
+        ], 'Mens Golf Journal'));
+        $lanes = collect($definition['categories'])->keyBy('name');
+
+        foreach (['Brands', 'Travel'] as $name) {
+            $this->assertSame(['golf'], $lanes[$name]['anchor_terms'], $name);
+            foreach ($lanes[$name]['queries'] as $query) {
+                $this->assertStringStartsWith('golf ', $query, $name);
+            }
+        }
+        $this->assertContains('golf brands news', $lanes['Brands']['queries']);
+        $this->assertArrayNotHasKey('anchor_terms', $lanes['Golf']);
+        $this->assertContains('golf news', $lanes['Golf']['queries']);
+
+        $resolved = [
+            'discovery_process' => HomepageCategoryPoolDefinition::TYPE,
+            'forced_category' => 'Brands',
+            'homepage_pool' => $definition,
+        ];
+        $policy = new CampaignSourceRelevancePolicy(new CampaignNegativeTopicMatcher());
+        $retail = ['title' => 'Vintage Clothing and Y2K Nostalgia Are Reviving Mall Brands', 'url' => 'https://news.test/mall-brands'];
+        $golf = ['title' => 'Golf brands bet on hybrid irons as club fitting demand grows', 'url' => 'https://news.test/golf-brands'];
+        $this->assertFalse($policy->sourceMatchesHomepageCategory($retail, $resolved, 'Brands'));
+        $this->assertTrue($policy->sourceMatchesHomepageCategory($golf, $resolved, 'Brands'));
+
+        $unanchored = collect($this->map($this->manifest([
+            $this->category(1, 'Brands', 'brands'),
+            $this->category(2, 'Golf', 'golf'),
+        ]))['categories'])->firstWhere('name', 'Brands');
+        $this->assertArrayNotHasKey('anchor_terms', $unanchored);
+        $this->assertContains('brands news', $unanchored['queries']);
+    }
+
     public function test_press_release_format_keeps_format_vocabulary_instead_of_inheriting_every_site_topic(): void
     {
         $definition = $this->map($this->manifest([

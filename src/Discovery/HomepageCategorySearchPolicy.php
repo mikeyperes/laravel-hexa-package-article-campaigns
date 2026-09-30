@@ -531,6 +531,44 @@ class HomepageCategorySearchPolicy
         return array_slice($this->normalizedTerms($context), 0, 24);
     }
 
+    /**
+     * Whether a label (a publication name or a query) names one of the terms
+     * as a whole word, allowing a plural ("Mens Golf Journal" names "golf").
+     *
+     * @param array<int, string> $terms
+     */
+    public function namesSubject(string $label, array $terms): bool
+    {
+        $label = Str::lower(Str::ascii($label));
+        if (trim($label) === '') {
+            return false;
+        }
+        foreach ($this->normalizedTerms($terms) as $term) {
+            $term = Str::lower(Str::ascii($term));
+            $pattern = '/(?<![a-z0-9])'.preg_quote($term, '/').'(?:s|es)?(?![a-z0-9])/i';
+            if ($term !== '' && preg_match($pattern, $label) === 1) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /**
+     * The publication's core subject that a facet lane must also match.
+     *
+     * CRITICAL — see BUGLOG.md CAMPAIGN-BUG-158. The "Brands" lane of a golf
+     * publication matched any story with the word "brands"; its compiled
+     * anchor terms ("golf") are required alongside the lane's own terms.
+     *
+     * @param array<string, mixed> $lane
+     * @return array<int, string>
+     */
+    public function laneAnchorTerms(array $lane): array
+    {
+        return $this->normalizedTerms((array) ($lane['anchor_terms'] ?? []));
+    }
+
     /** @param array<int, string> $formatTerms */
     public function matchesSourceFormat(array $source, array $formatTerms): bool
     {

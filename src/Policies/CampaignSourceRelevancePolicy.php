@@ -403,6 +403,12 @@ class CampaignSourceRelevancePolicy
                 $source,
                 array_values(array_unique($terms)),
             );
+            // CRITICAL — see BUGLOG.md CAMPAIGN-BUG-158. A facet lane also
+            // requires the publication's core subject ("golf" for "Brands").
+            $anchorTerms = $selectedLane === null ? [] : $this->homepageCategorySearchPolicy->laneAnchorTerms($selectedLane);
+            if ($categoryMatches && $anchorTerms !== []) {
+                $categoryMatches = $this->homepageCategorySearchPolicy->matches($source, $anchorTerms);
+            }
         } else {
             $contextTerms = $selectedLane === null
                 ? []

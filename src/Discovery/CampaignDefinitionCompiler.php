@@ -33,7 +33,12 @@ final class CampaignDefinitionCompiler
             (string) ($publication['homepage_title'] ?? ''),
         ]));
         $focus = $this->searchPolicy->publicationFocus($identity);
-        $compiledCategories = $this->compileCategories($categories, $identity, $focus);
+        $compiledCategories = $this->compileCategories(
+            $categories,
+            $identity,
+            $focus,
+            trim((string) ($publication['name'] ?? '')),
+        );
 
         return CampaignDefinition::compile(
             HomepageCategoryPoolDefinition::RETRIEVAL_METHOD,
@@ -54,11 +59,14 @@ final class CampaignDefinitionCompiler
      * @param array<string, mixed>|null $focus
      * @return array<int, array<string, mixed>>
      */
-    private function compileCategories(array $categories, string $identity, ?array $focus): array
+    private function compileCategories(array $categories, string $identity, ?array $focus, string $publicationName = ''): array
     {
         $specific = [];
         $specificAnchors = [];
         $subjects = [];
+        $coreLanes = [];
+        $coreTerms = [];
+        $coreAnchors = [];
         $sharedSections = $this->sharedSections($categories);
         foreach ($categories as $index => $category) {
             $name = (string) ($category['name'] ?? '');
@@ -67,9 +75,25 @@ final class CampaignDefinitionCompiler
                 if ($this->searchPolicy->laneSourceFormat($category) === null) {
                     $specific = array_merge($specific, $subjects[$index]['terms']);
                     $specificAnchors[] = (string) ($subjects[$index]['terms'][0] ?? '');
+                    // CRITICAL — see BUGLOG.md CAMPAIGN-BUG-158. A topical lane
+                    // named by the publication itself ("Golf" on Mens Golf
+                    // Journal) is the publication's core subject.
+                    if ($this->searchPolicy->namesSubject($publicationName, $subjects[$index]['terms'])) {
+                        $coreLanes[$index] = true;
+                        $coreTerms = array_merge($coreTerms, $subjects[$index]['terms']);
+                        $coreAnchors[] = (string) ($subjects[$index]['terms'][0] ?? '');
+                    }
                 }
             }
         }
+        $coreTerms = array_values(array_unique(array_filter(array_map('trim', $coreTerms))));
+        $coreAnchors = array_values(array_unique(array_filter(array_map('trim', $coreAnchors))));
+        // CRITICAL — see BUGLOG.md CAMPAIGN-BUG-158. Every other lane is a facet
+        // of that subject: "Brands" on a golf publication means golf brands, and
+        // the bare facet ("brands news") returned mall retail, bottled water and
+        // laundry stories. Facet, generic and format lanes pair with the core
+        // subject. A focus profile already prefixes every query.
+        $anchorLanes = $focus === null && $coreAnchors !== [];
 
         if ($specific === [] && $focus !== null) {
             $specific = (array) ($focus['terms'] ?? []);
@@ -112,11 +136,11 @@ final class CampaignDefinitionCompiler
             $category['content_mode'] = $this->searchPolicy->contentMode($name);
             if ($sourceFormat !== null) {
                 $category['source_format'] = $sourceFormat;
-                $category['context_terms'] = array_slice($specific, 0, 24);
+                $category['context_terms'] = array_slice($anchorLanes ? $coreTerms : $specific, 0, 24);
                 if ($category['context_terms'] === []) {
                     throw new RuntimeException('The source-format homepage category "'.$name.'" has no manifest-derived publication subject. No AI was called.');
                 }
-                $category['queries'] = $this->sourceFormatQueries($terms, $specificAnchors);
+                $category['queries'] = $this->sourceFormatQueries($terms, $anchorLanes ? $coreAnchors : $specificAnchors);
             } else {
                 unset($category['source_format'], $category['context_terms']);
                 $suffix = $category['content_mode'] === 'evergreen' ? ' guide' : ' news';
@@ -129,6 +153,11 @@ final class CampaignDefinitionCompiler
                     $category['queries'][] = $terms[0].' research innovation';
                 }
             }
+            unset($category['anchor_terms']);
+            if ($anchorLanes && $sourceFormat === null && ! isset($coreLanes[$index])) {
+                $category['anchor_terms'] = array_slice($coreTerms, 0, 24);
+                $category['queries'] = $this->anchoredQueries($category['queries'], $coreAnchors, $coreTerms);
+            }
             if ($focus !== null) {
                 $category['queries'] = array_map(
                     static fn (string $query): string => trim((string) $focus['query_prefix'].' '.$query),
@@ -140,6 +169,32 @@ final class CampaignDefinitionCompiler
         unset($category);
 
         return array_values($categories);
+    }
+
+    /**
+     * Prefix each query with the publication's core subject unless it already
+     * names it ("golf news" stays; "brands news" becomes "golf brands news").
+     *
+     * @param array<int, string> $queries
+     * @param array<int, string> $anchors
+     * @param array<int, string> $coreTerms
+     * @return array<int, string>
+     */
+    private function anchoredQueries(array $queries, array $anchors, array $coreTerms): array
+    {
+        $prefix = count($anchors) === 1
+            ? $anchors[0]
+            : '('.implode(' OR ', array_map(
+                static fn (string $anchor): string => str_contains($anchor, ' ') ? '"'.$anchor.'"' : $anchor,
+                $anchors,
+            )).')';
+
+        return array_values(array_unique(array_map(
+            fn (string $query): string => $this->searchPolicy->namesSubject($query, $coreTerms)
+                ? $query
+                : trim($prefix.' '.$query),
+            $queries,
+        )));
     }
 
     /**

@@ -1,5 +1,51 @@
 # Campaign Bug Log — laravel-hexa-package-article-campaigns
 
+## CAMPAIGN-BUG-158 — Facet lanes searched the bare facet, not the publication's subject
+
+- **Severity:** High
+- **Status:** Fixed in laravel-hexa-package-article-campaigns 1.4.6 and laravel-hexa-app-publish 18.33.13, 2026-09-30 17:35:37 EST.
+- **Symptom:** Mens Golf Journal (campaign 73) daily queue DQ-20260930-0001
+  item 35 failed five times on 2026-09-30. Every slot landed in the "Brands"
+  lane, whose compiled queries were "brands news" and "brand news", and drew
+  mall retail (article 8049), Primo bottled water (8050), a PR Newswire
+  self-promotion (8051), a laundry brand (8052) and ethical fashion (8053);
+  the writer declined each. Its "Travel" lane searched "travel news".
+- **Impact:** On any publication whose name declares a subject ("Golf",
+  "Sports", "Game"), every other homepage lane searched and word-matched its
+  bare facet, so the pool filled with stories outside the publication's
+  subject whenever the pre-spend classifier (CAMPAIGN-BUG-147) could not
+  answer, and each retry of the slot was wasted. The classifier has returned
+  nothing since 2026-09-27 because the Anthropic API credit is exhausted.
+- **Root cause:** `CampaignDefinitionCompiler::compileCategories()` compiled
+  each non-generic lane from its own name only. Only generic and source-format
+  lanes (CAMPAIGN-BUG-153) were paired with the publication, and only a
+  configured focus profile prefixed queries; none is configured, so "Brands"
+  on a golf publication meant any brand. The word fallback in
+  `CampaignSourceRelevancePolicy` and the app's
+  `CampaignSourcePoolService::candidateRejection()` required only the lane's
+  own terms.
+- **Patch:** A topical lane whose terms the publication name names as a whole
+  word is the publication's core subject
+  (`HomepageCategorySearchPolicy::namesSubject()`). When no focus profile
+  applies, every other non-format lane stores `anchor_terms` (the core terms)
+  and its queries are prefixed with the core subject unless they already name
+  it ("golf brands news", "golf travel news"; "golf news" is unchanged);
+  source-format lanes pair with the core subject instead of every facet. Both
+  word fallbacks require a lane's `anchor_terms`
+  (`HomepageCategorySearchPolicy::laneAnchorTerms()`). A publication whose
+  name names no lane compiles exactly as before. Existing campaigns take the
+  change on a manifest rescan (`publish:campaign-pool <id> --configure`);
+  campaign 73 was rescanned. Game Tech Daily (67) and Sports Tech Today (70)
+  also name a lane and take anchored queries on their next rescan.
+- **Guard:** `CRITICAL — see BUGLOG.md CAMPAIGN-BUG-158` in
+  `CampaignDefinitionCompiler::compileCategories()`,
+  `HomepageCategorySearchPolicy::laneAnchorTerms()`,
+  `CampaignSourceRelevancePolicy::lexicalSourceMatchesHomepageCategory()` and
+  the app's `CampaignSourcePoolService::candidateRejection()`;
+  `ManifestCampaignDefinitionTest::test_facet_lane_pairs_with_the_subject_the_publication_name_declares`.
+
+---
+
 ## CAMPAIGN-BUG-153 — Podcast lanes searched the bare medium, not the publication topic
 
 - **Severity:** High
