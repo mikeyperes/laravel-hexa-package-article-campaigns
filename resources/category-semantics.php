@@ -33,6 +33,15 @@ return [
             'podcast', 'podcasts', 'podcast episode', 'podcast interview',
         ],
     ],
+    // CRITICAL — see BUGLOG.md CAMPAIGN-BUG-159. Language-level equivalents
+    // of a qualifying word in a child category label ("Women Entrepreneurs");
+    // not publication vocabulary.
+    'qualifier_synonyms' => [
+        'women' => ['woman', 'female'],
+        'woman' => ['women', 'female'],
+        'men' => ['man', 'male'],
+        'man' => ['men', 'male'],
+    ],
     'stop_words' => [
         'a', 'an', 'and', 'article', 'articles', 'at', 'by', 'for', 'from',
         'in', 'into', 'news', 'of', 'on', 'or', 'the', 'to', 'with',

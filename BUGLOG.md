@@ -1,5 +1,57 @@
 # Campaign Bug Log — laravel-hexa-package-article-campaigns
 
+## CAMPAIGN-BUG-159 — Qualified child lanes searched only their parent's subject
+
+- **Severity:** High
+- **Status:** Fixed in laravel-hexa-package-article-campaigns 1.4.7 and laravel-hexa-app-publish 18.33.14, 2026-09-30 18:25:00 EST.
+- **Symptom:** Grit Daily (campaign 58) daily queue DQ-20260930-0001 item 41:
+  the "Women Entrepreneurs" lane (`/category/entrepreneurship/women-entrepreneurs/`)
+  compiled terms `["entrepreneurship"]` and queries "entrepreneurship news",
+  "entrepreneurship industry developments" and "entrepreneurship research
+  innovation". Two consecutive slots drew a Minnesota Senate small-business
+  bill (article 8061, op 7611) and a Harvard Business School obituary
+  (article 8062, op 7612); the writer declined both as not women-entrepreneur
+  stories.
+- **Impact:** Every child category whose label is its own subject lost it.
+  Qualified children ("Women Entrepreneurs") searched and word-matched the
+  bare parent, and one-word children collapsed into the parent phrase
+  (campaign 64: "Pharmaceuticals" searched "healthcare biotech news",
+  "Startups" searched "business leadership news"). With the pool classifier
+  unavailable (CAMPAIGN-BUG-147/158), the word fallback admitted any parent-
+  subject story and each retry was wasted.
+- **Root cause:** CAMPAIGN-BUG-048 made `CampaignDefinitionCompiler::categorySubject()`
+  prefer the parent category URL subject for every child without curated
+  vocabulary. The vocabulary is now empty, so every child label, including an
+  unambiguous one, was replaced by its parent subject; "Plugged In"-style show
+  names were the only labels that needed that.
+- **Patch:** `CampaignDefinitionCompiler::childSubject()` runs before the
+  parent fallback. `HomepageCategorySearchPolicy::childLabelParts()` splits a
+  standalone child label into words that restate the parent (shared stem:
+  "entrepreneurs"/"entrepreneurship") and qualifying words ("women"). A
+  qualified child stores `qualifier_terms` (the word, its singular and
+  `qualifier_synonyms`: "women", "woman", "female"), searches only phrases
+  that keep the qualifier ("women entrepreneurs news", "women
+  entrepreneurship news"; `phraseKey()` removes duplicates) and records
+  `semantic_context.source = qualified_child_category`. A one-word child
+  compiles its own word. Other multi-word labels and podcast children keep
+  the parent or format subject as before. Both word fallbacks
+  (`CampaignSourceRelevancePolicy` and the app's
+  `CampaignSourcePoolService::candidateRejection()`, reason
+  `category_qualifier_mismatch`) require `laneQualifierTerms()`. A qualified
+  child is never a publication core lane (CAMPAIGN-BUG-158). Existing
+  campaigns take the change on a manifest rescan; campaign 58 was rescanned.
+  Campaigns 62 ("AI") and 64 (Pharmaceuticals, Startups, Leadership) take
+  their own subjects on their next rescan.
+- **Guard:** `CRITICAL — see BUGLOG.md CAMPAIGN-BUG-159` in
+  `resources/category-semantics.php`,
+  `CampaignDefinitionCompiler::childSubject()` and `compileCategories()`,
+  `HomepageCategorySearchPolicy::laneQualifierTerms()`,
+  `CampaignSourceRelevancePolicy::lexicalSourceMatchesHomepageCategory()` and
+  the app's `CampaignSourcePoolService::candidateRejection()`;
+  `ManifestCampaignDefinitionTest::test_qualified_child_lane_keeps_its_qualifying_words`.
+
+---
+
 ## CAMPAIGN-BUG-158 — Facet lanes searched the bare facet, not the publication's subject
 
 - **Severity:** High

@@ -187,6 +187,47 @@ final class ManifestCampaignDefinitionTest extends TestCase
         $this->assertContains('brands news', $unanchored['queries']);
     }
 
+    public function test_qualified_child_lane_keeps_its_qualifying_words(): void
+    {
+        $women = $this->category(19776, 'Women Entrepreneurs', 'women-entrepreneurs');
+        $women['url'] = 'https://publication.test/category/entrepreneurship/women-entrepreneurs/';
+        $pharma = $this->category(801, 'Pharmaceuticals', 'pharmaceuticals');
+        $pharma['url'] = 'https://publication.test/category/healthcare-biotech/pharmaceuticals/';
+        $definition = $this->map($this->manifest([
+            $this->category(85, 'Leadership', 'leadership'),
+            $women,
+            $pharma,
+        ], 'Grit Daily'));
+        $lanes = collect($definition['categories'])->keyBy('name');
+        $lane = $lanes['Women Entrepreneurs'];
+
+        $this->assertSame('qualified_child_category', $lane['semantic_context']['source']);
+        $this->assertSame(['women', 'woman', 'female'], $lane['qualifier_terms']);
+        $this->assertContains('women entrepreneurs news', $lane['queries']);
+        foreach ($lane['queries'] as $query) {
+            $this->assertStringStartsWith('women ', $query);
+        }
+        $this->assertSame(['pharmaceuticals', 'pharmaceutical'], $lanes['Pharmaceuticals']['terms']);
+        $this->assertArrayNotHasKey('qualifier_terms', $lanes['Pharmaceuticals']);
+
+        $resolved = [
+            'discovery_process' => HomepageCategoryPoolDefinition::TYPE,
+            'forced_category' => 'Women Entrepreneurs',
+            'homepage_pool' => $definition,
+        ];
+        $policy = new CampaignSourceRelevancePolicy(new CampaignNegativeTopicMatcher());
+        foreach ([
+            'Senator Heather Gustafson Renews Legislation to Strengthen Small Business Entrepreneurship in Minnesota',
+            'Howard H. Stevenson, Pioneer in Entrepreneurship at Harvard Business School, Dies',
+        ] as $title) {
+            $this->assertFalse($policy->sourceMatchesHomepageCategory(['title' => $title, 'url' => 'https://news.test/a'], $resolved, 'Women Entrepreneurs'), $title);
+        }
+        $this->assertTrue($policy->sourceMatchesHomepageCategory([
+            'title' => 'Female entrepreneurs in Ohio gain a new venture fund',
+            'url' => 'https://news.test/b',
+        ], $resolved, 'Women Entrepreneurs'));
+    }
+
     public function test_press_release_format_keeps_format_vocabulary_instead_of_inheriting_every_site_topic(): void
     {
         $definition = $this->map($this->manifest([

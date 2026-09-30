@@ -204,6 +204,7 @@ final readonly class CampaignDefinition
                 || ! in_array(($category['semantic_context']['source'] ?? null), [
                     'category_vocabulary',
                     'parent_category_path',
+                    'qualified_child_category',
                     'manifest_evidence',
                     'structural_source_format',
                 ], true)

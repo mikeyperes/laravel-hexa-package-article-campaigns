@@ -409,6 +409,12 @@ class CampaignSourceRelevancePolicy
             if ($categoryMatches && $anchorTerms !== []) {
                 $categoryMatches = $this->homepageCategorySearchPolicy->matches($source, $anchorTerms);
             }
+            // CRITICAL — see BUGLOG.md CAMPAIGN-BUG-159. A qualified child lane
+            // ("Women Entrepreneurs") also requires its qualifying words.
+            $qualifierTerms = $selectedLane === null ? [] : $this->homepageCategorySearchPolicy->laneQualifierTerms($selectedLane);
+            if ($categoryMatches && $qualifierTerms !== []) {
+                $categoryMatches = $this->homepageCategorySearchPolicy->matches($source, $qualifierTerms);
+            }
         } else {
             $contextTerms = $selectedLane === null
                 ? []

@@ -3,6 +3,7 @@
 namespace hexa_package_article_campaigns\Discovery;
 
 use hexa_package_article_campaigns\Data\CampaignDefinition;
+use Illuminate\Support\Str;
 use RuntimeException;
 
 /** Compile validated first-party manifest facts into one reusable policy input. */
@@ -78,7 +79,9 @@ final class CampaignDefinitionCompiler
                     // CRITICAL — see BUGLOG.md CAMPAIGN-BUG-158. A topical lane
                     // named by the publication itself ("Golf" on Mens Golf
                     // Journal) is the publication's core subject.
-                    if ($this->searchPolicy->namesSubject($publicationName, $subjects[$index]['terms'])) {
+                    // A qualified child (CAMPAIGN-BUG-159) is a facet, never the core.
+                    if (! isset($subjects[$index]['qualifier_terms'])
+                        && $this->searchPolicy->namesSubject($publicationName, $subjects[$index]['terms'])) {
                         $coreLanes[$index] = true;
                         $coreTerms = array_merge($coreTerms, $subjects[$index]['terms']);
                         $coreAnchors[] = (string) ($subjects[$index]['terms'][0] ?? '');
@@ -144,16 +147,22 @@ final class CampaignDefinitionCompiler
             } else {
                 unset($category['source_format'], $category['context_terms']);
                 $suffix = $category['content_mode'] === 'evergreen' ? ' guide' : ' news';
+                // CRITICAL — see BUGLOG.md CAMPAIGN-BUG-159. A qualified child
+                // lane searches only phrases that keep its qualifier.
+                $queryTerms = (array) ($subject['query_terms'] ?? []) ?: $terms;
                 $category['queries'] = array_map(
                     static fn (string $term): string => $term.$suffix,
-                    array_slice($terms, 0, 5),
+                    array_slice($queryTerms, 0, 5),
                 );
                 if (count($category['queries']) === 1) {
-                    $category['queries'][] = $terms[0].' industry developments';
-                    $category['queries'][] = $terms[0].' research innovation';
+                    $category['queries'][] = $queryTerms[0].' industry developments';
+                    $category['queries'][] = $queryTerms[0].' research innovation';
                 }
             }
-            unset($category['anchor_terms']);
+            unset($category['anchor_terms'], $category['qualifier_terms']);
+            if ($sourceFormat === null && ($subject['qualifier_terms'] ?? []) !== []) {
+                $category['qualifier_terms'] = array_values($subject['qualifier_terms']);
+            }
             if ($anchorLanes && $sourceFormat === null && ! isset($coreLanes[$index])) {
                 $category['anchor_terms'] = array_slice($coreTerms, 0, 24);
                 $category['queries'] = $this->anchoredQueries($category['queries'], $coreAnchors, $coreTerms);
@@ -304,7 +313,7 @@ final class CampaignDefinitionCompiler
             (string) ($category['slug'] ?? ''),
         );
         if ($parent !== null) {
-            return [
+            return $this->childSubject($category, $parent, $sharedSections) ?? [
                 'terms' => $parent['terms'],
                 'context' => ['source' => 'parent_category_path', 'subject' => $parent['subject']],
             ];
@@ -327,6 +336,71 @@ final class CampaignDefinitionCompiler
             'terms' => $this->categoryTerms($category, $sharedSections),
             'context' => ['source' => 'manifest_evidence', 'subject' => $name],
         ];
+    }
+
+    /**
+     * A child category whose own label is a clear subject keeps it instead of
+     * collapsing into its parent's subject.
+     *
+     * CRITICAL — see BUGLOG.md CAMPAIGN-BUG-159. "Women Entrepreneurs" under
+     * /category/entrepreneurship/ compiled to "entrepreneurship" alone and
+     * drew a general small-business bill and an obituary. A label that
+     * restates the parent and adds qualifying words keeps those words in every
+     * query and requires them in the word fallback; a one-word child
+     * ("Pharmaceuticals" under /healthcare-biotech/) searches its own word.
+     * Other multi-word labels keep the parent subject (CAMPAIGN-BUG-048:
+     * "Plugged In" is a show name, not a subject).
+     *
+     * @param array<string, mixed> $category
+     * @param array{subject:string,terms:array<int,string>} $parent
+     * @param array<int, string> $sharedSections
+     * @return array{terms:array<int,string>,context:array{source:string,subject:string},query_terms?:array<int,string>,qualifier_terms?:array<int,string>}|null
+     */
+    private function childSubject(array $category, array $parent, array $sharedSections): ?array
+    {
+        $name = trim((string) ($category['name'] ?? ''));
+        if (! $this->searchPolicy->hasStandaloneSubject($name)) {
+            return null;
+        }
+        $own = $this->categoryTerms($category, $sharedSections);
+        if ($own === []) {
+            return null;
+        }
+        $parts = $this->searchPolicy->childLabelParts($name, array_merge([$parent['subject']], $parent['terms']));
+
+        if ($parts['subject'] !== [] && $parts['qualifiers'] !== []) {
+            $qualifierTerms = $this->searchPolicy->qualifierTerms($parts['qualifiers']);
+            $qualifierPhrase = implode(' ', $parts['qualifiers']);
+            $queryTerms = array_values(array_filter(
+                $own,
+                fn (string $term): bool => $this->searchPolicy->namesSubject($term, $qualifierTerms),
+            ));
+            $queryTerms[] = $qualifierPhrase.' '.(string) ($parent['terms'][0] ?? $parent['subject']);
+            $bySingular = [];
+            foreach ($queryTerms as $term) {
+                $bySingular[$this->searchPolicy->phraseKey($term)] ??= trim($term);
+            }
+            $subjectForms = [];
+            foreach ($parts['subject'] as $token) {
+                $subjectForms[] = $token;
+                $subjectForms[] = Str::singular($token);
+            }
+
+            return [
+                'terms' => array_values(array_unique(array_merge($own, array_values($bySingular), $parent['terms'], $subjectForms))),
+                'query_terms' => array_values($bySingular),
+                'qualifier_terms' => $qualifierTerms,
+                'context' => ['source' => 'qualified_child_category', 'subject' => $name],
+            ];
+        }
+        if (count($parts['subject']) + count($parts['qualifiers']) === 1) {
+            return [
+                'terms' => $own,
+                'context' => ['source' => 'manifest_evidence', 'subject' => $name],
+            ];
+        }
+
+        return null;
     }
 
     private function normalizeEvidence(string $value): string

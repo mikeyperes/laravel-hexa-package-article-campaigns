@@ -569,6 +569,112 @@ class HomepageCategorySearchPolicy
         return $this->normalizedTerms((array) ($lane['anchor_terms'] ?? []));
     }
 
+    /**
+     * Split a child category label into the words that restate its parent
+     * subject ("Entrepreneurs" under /entrepreneurship/) and the words that
+     * qualify it ("Women").
+     *
+     * @param array<int, string> $parentTerms the parent subject and its terms
+     * @return array{subject:array<int,string>,qualifiers:array<int,string>}
+     */
+    public function childLabelParts(string $label, array $parentTerms): array
+    {
+        $parentTokens = [];
+        foreach ($parentTerms as $term) {
+            $parentTokens = array_merge($parentTokens, $this->contentTokens((string) $term));
+        }
+        $parts = ['subject' => [], 'qualifiers' => []];
+        foreach ($this->contentTokens($label) as $token) {
+            $restates = collect($parentTokens)->contains(
+                fn (string $parent): bool => $this->sharesStem($token, $parent),
+            );
+            $parts[$restates ? 'subject' : 'qualifiers'][] = $token;
+        }
+
+        return ['subject' => array_values(array_unique($parts['subject'])), 'qualifiers' => array_values(array_unique($parts['qualifiers']))];
+    }
+
+    /**
+     * Word forms that establish a lane qualifier: the word, its singular and
+     * the structural equivalents in `qualifier_synonyms` ("women" → "woman",
+     * "female").
+     *
+     * @param array<int, string> $qualifiers
+     * @return array<int, string>
+     */
+    public function qualifierTerms(array $qualifiers): array
+    {
+        $synonyms = (array) ($this->semantics['qualifier_synonyms'] ?? []);
+        $terms = [];
+        foreach ($qualifiers as $qualifier) {
+            $qualifier = Str::lower(Str::ascii(trim((string) $qualifier)));
+            if ($qualifier === '') {
+                continue;
+            }
+            $singular = Str::singular($qualifier);
+            $terms = array_merge(
+                $terms,
+                [$qualifier, $singular],
+                (array) ($synonyms[$qualifier] ?? []),
+                (array) ($synonyms[$singular] ?? []),
+            );
+        }
+
+        return $this->normalizedTerms($terms);
+    }
+
+    /**
+     * The qualifying words a child lane must also match.
+     *
+     * CRITICAL — see BUGLOG.md CAMPAIGN-BUG-159. "Women Entrepreneurs" under
+     * /category/entrepreneurship/ matched any entrepreneurship story; its
+     * compiled qualifier terms ("women", "woman", "female") are required
+     * alongside the lane's own terms.
+     *
+     * @param array<string, mixed> $lane
+     * @return array<int, string>
+     */
+    public function laneQualifierTerms(array $lane): array
+    {
+        return $this->normalizedTerms((array) ($lane['qualifier_terms'] ?? []));
+    }
+
+    /** @return array<int, string> */
+    private function contentTokens(string $label): array
+    {
+        $stopWords = (array) ($this->semantics['stop_words'] ?? []);
+
+        return array_values(array_filter(
+            preg_split('/[^a-z0-9]+/', Str::lower(Str::ascii(trim($label)))) ?: [],
+            static fn (string $token): bool => strlen($token) >= 2 && ! in_array($token, $stopWords, true),
+        ));
+    }
+
+    /**
+     * One comparison key per search phrase: singular content words, so
+     * "Women Entrepreneurs News" and "women entrepreneur" are one query.
+     */
+    public function phraseKey(string $phrase): string
+    {
+        return implode(' ', array_map(
+            static fn (string $token): string => Str::singular($token),
+            $this->contentTokens($phrase),
+        ));
+    }
+
+    private function sharesStem(string $left, string $right): bool
+    {
+        $left = Str::singular($left);
+        $right = Str::singular($right);
+        if ($left === $right) {
+            return true;
+        }
+        $shorter = strlen($left) <= strlen($right) ? $left : $right;
+        $longer = $shorter === $left ? $right : $left;
+
+        return strlen($shorter) >= 5 && str_starts_with($longer, $shorter);
+    }
+
     /** @param array<int, string> $formatTerms */
     public function matchesSourceFormat(array $source, array $formatTerms): bool
     {
