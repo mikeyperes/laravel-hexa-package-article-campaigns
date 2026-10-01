@@ -26,6 +26,7 @@ class HomepageCategoryPoolDefinition
         return array_replace($resolved, [
             'discovery_process' => self::TYPE,
             'homepage_pool' => $definition,
+            'coverage_focus' => is_array($definition['coverage_focus'] ?? null) ? $definition['coverage_focus'] : null,
             'taxonomy_capabilities' => (array) ($definition['taxonomy_capabilities'] ?? []),
             'delivery_capabilities' => (array) ($definition['delivery_capabilities'] ?? []),
             'allowed_categories' => $categories,

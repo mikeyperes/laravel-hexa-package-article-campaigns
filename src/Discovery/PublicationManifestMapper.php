@@ -2,6 +2,7 @@
 
 namespace hexa_package_article_campaigns\Discovery;
 
+use hexa_package_article_campaigns\Data\CoverageFocus;
 use JsonException;
 use RuntimeException;
 
@@ -46,9 +47,12 @@ final class PublicationManifestMapper
      * The fourth argument is retained for source compatibility only. Version 2
      * definitions never read campaign names, old topics or saved prompt text.
      *
+     * A coverage focus replaces the homepage lanes with its reviewed, eligible
+     * WordPress categories; the manifest is validated exactly as before.
+     *
      * @param array{name?: string, topic?: string} $campaignEditorial
      */
-    public function map(array $manifest, string $siteUrl, ?string $effectiveUrl = null, array $campaignEditorial = []): array
+    public function map(array $manifest, string $siteUrl, ?string $effectiveUrl = null, array $campaignEditorial = [], ?CoverageFocus $coverageFocus = null): array
     {
         $siteUrl = $this->canonicalSiteUrl($siteUrl);
         if ($siteUrl === null) {
@@ -208,6 +212,18 @@ final class PublicationManifestMapper
 
         unset($campaignEditorial);
 
+        $focusCategories = [];
+        foreach ($coverageFocus?->categoryIds() ?? [] as $categoryId) {
+            $category = $taxonomyIndex[$categoryId] ?? null;
+            if (! is_array($category) || $category['policy_status'] !== 'eligible' || $categoryId === $defaultCategoryId) {
+                throw $this->failure('coverage focus category '.$categoryId.' is not an eligible WordPress category');
+            }
+            if ($this->searchPolicy->laneSourceFormat($category) !== null) {
+                throw $this->failure('coverage focus category "'.$category['name'].'" is a press-release or podcast section');
+            }
+            $focusCategories[$categoryId] = $category;
+        }
+
         return $this->definitionCompiler->compile(
             $manifestUrl,
             self::API_VERSION,
@@ -222,6 +238,8 @@ final class PublicationManifestMapper
                 'homepage_title' => (string) ($homepage['title'] ?? ''),
             ],
             $this->deliveryCapabilities($delivery),
+            $coverageFocus,
+            $focusCategories,
         )->toArray();
     }
 

@@ -3,6 +3,7 @@
 namespace hexa_package_article_campaigns\Discovery;
 
 use hexa_package_article_campaigns\Data\CampaignDefinition;
+use hexa_package_article_campaigns\Data\CoverageFocus;
 use Illuminate\Support\Str;
 use RuntimeException;
 
@@ -16,6 +17,7 @@ final class CampaignDefinitionCompiler
      * @param array<int, array<string, mixed>> $categories
      * @param array{name:string,description?:string,homepage_title?:string} $publication
      * @param array<string, mixed> $deliveryCapabilities
+     * @param array<int, array<string, mixed>> $focusCategories manifest category records keyed by WordPress ID
      */
     public function compile(
         string $manifestUrl,
@@ -27,7 +29,25 @@ final class CampaignDefinitionCompiler
         array $categories,
         array $publication,
         array $deliveryCapabilities = [],
+        ?CoverageFocus $coverageFocus = null,
+        array $focusCategories = [],
     ): CampaignDefinition {
+        if ($coverageFocus !== null) {
+            return CampaignDefinition::compile(
+                HomepageCategoryPoolDefinition::RETRIEVAL_METHOD,
+                $manifestUrl,
+                $manifestApiVersion,
+                $manifestPluginVersion,
+                $manifestFingerprint,
+                $homepageUrl,
+                $taxonomyCapabilities,
+                $this->compileFocusLanes($coverageFocus, $focusCategories),
+                $coverageFocus->publicationFocus(),
+                $deliveryCapabilities,
+                $coverageFocus->toArray(),
+            );
+        }
+
         $identity = trim(implode(' ', [
             (string) ($publication['name'] ?? ''),
             (string) ($publication['description'] ?? ''),
@@ -178,6 +198,34 @@ final class CampaignDefinitionCompiler
         unset($category);
 
         return array_values($categories);
+    }
+
+    /**
+     * A coverage focus replaces the homepage lanes with its reviewed WordPress
+     * categories. Each lane keeps the manifest's category identity and takes
+     * its subject terms and publisher-ordered queries from the focus.
+     *
+     * @param array<int, array<string, mixed>> $focusCategories
+     * @return array<int, array<string, mixed>>
+     */
+    private function compileFocusLanes(CoverageFocus $focus, array $focusCategories): array
+    {
+        $lanes = [];
+        foreach ($focus->lanes as $lane) {
+            $category = $focusCategories[$lane['category_id']] ?? null;
+            if (! is_array($category)) {
+                throw new RuntimeException('Coverage focus category '.$lane['category_id'].' is not an eligible WordPress category on this site. No AI was called.');
+            }
+            unset($category['policy_status'], $category['anchor_terms'], $category['qualifier_terms'], $category['source_format'], $category['context_terms']);
+            $lanes[] = array_replace($category, [
+                'terms' => $lane['terms'],
+                'queries' => $focus->laneQueries($lane),
+                'semantic_context' => ['source' => CoverageFocus::SOURCE, 'subject' => (string) $category['name']],
+                'content_mode' => 'news',
+            ]);
+        }
+
+        return $lanes;
     }
 
     /**

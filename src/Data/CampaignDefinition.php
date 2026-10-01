@@ -35,6 +35,7 @@ final readonly class CampaignDefinition
         public ?array $publicationFocus,
         public array $deliveryCapabilities,
         public string $fingerprint,
+        public ?array $coverageFocus = null,
     ) {}
 
     /**
@@ -53,6 +54,7 @@ final readonly class CampaignDefinition
         array $categories,
         ?array $publicationFocus = null,
         array $deliveryCapabilities = [],
+        ?array $coverageFocus = null,
     ): self {
         $payload = self::payload(
             $retrievalMethod,
@@ -65,6 +67,7 @@ final readonly class CampaignDefinition
             $categories,
             $publicationFocus,
             $deliveryCapabilities,
+            $coverageFocus,
         );
         self::validate($payload);
 
@@ -80,6 +83,7 @@ final readonly class CampaignDefinition
             $publicationFocus,
             $deliveryCapabilities,
             self::hash($payload),
+            $coverageFocus,
         );
     }
 
@@ -98,6 +102,7 @@ final readonly class CampaignDefinition
             array_values((array) $definition['categories']),
             isset($definition['publication_focus']) ? (array) $definition['publication_focus'] : null,
             (array) ($definition['delivery_capabilities'] ?? []),
+            isset($definition['coverage_focus']) ? (array) $definition['coverage_focus'] : null,
         );
         $expected = self::hash($payload);
         $actual = (string) ($definition['fingerprint'] ?? '');
@@ -117,6 +122,7 @@ final readonly class CampaignDefinition
             isset($definition['publication_focus']) ? (array) $definition['publication_focus'] : null,
             (array) ($definition['delivery_capabilities'] ?? []),
             $actual,
+            isset($definition['coverage_focus']) ? (array) $definition['coverage_focus'] : null,
         );
     }
 
@@ -134,6 +140,7 @@ final readonly class CampaignDefinition
             $this->categories,
             $this->publicationFocus,
             $this->deliveryCapabilities,
+            $this->coverageFocus,
         ) + ['fingerprint' => $this->fingerprint];
     }
 
@@ -149,6 +156,7 @@ final readonly class CampaignDefinition
         array $categories,
         ?array $publicationFocus,
         array $deliveryCapabilities,
+        ?array $coverageFocus = null,
     ): array {
         $payload = array_filter([
             'definition_version' => self::DEFINITION_VERSION,
@@ -166,6 +174,11 @@ final readonly class CampaignDefinition
 
         if ($deliveryCapabilities !== []) {
             $payload['delivery_capabilities'] = $deliveryCapabilities;
+        }
+        // Present only on a coverage-focus campaign, so every existing
+        // definition keeps its fingerprint.
+        if ($coverageFocus !== null && $coverageFocus !== []) {
+            $payload['coverage_focus'] = $coverageFocus;
         }
 
         return $payload;
@@ -207,6 +220,7 @@ final readonly class CampaignDefinition
                     'qualified_child_category',
                     'manifest_evidence',
                     'structural_source_format',
+                    CoverageFocus::SOURCE,
                 ], true)
                 || trim((string) ($category['semantic_context']['subject'] ?? '')) === ''
                 || ! is_array($category['terms'] ?? null) || $category['terms'] === []
@@ -214,6 +228,22 @@ final readonly class CampaignDefinition
                 throw new InvalidArgumentException('Campaign definition contains an invalid category lane.');
             }
             $ids[$id] = true;
+        }
+
+        if (array_key_exists('coverage_focus', $definition)) {
+            $focus = $definition['coverage_focus'];
+            // Stored JSON may come back with reordered keys; compare canonically.
+            if (! is_array($focus)
+                || self::canonicalize(CoverageFocus::fromArray($focus)->toArray()) !== self::canonicalize($focus)) {
+                throw new InvalidArgumentException('Campaign definition contains an invalid coverage focus.');
+            }
+            $laneIds = array_map(static fn (array $category): int => (int) $category['id'], $definition['categories']);
+            sort($laneIds);
+            $focusIds = CoverageFocus::fromArray($focus)->categoryIds();
+            sort($focusIds);
+            if ($laneIds !== $focusIds) {
+                throw new InvalidArgumentException('Campaign definition lanes do not match its coverage focus.');
+            }
         }
 
         if (isset($definition['fingerprint'])
