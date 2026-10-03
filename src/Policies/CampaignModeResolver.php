@@ -3,8 +3,9 @@
 namespace hexa_package_article_campaigns\Policies;
 
 /**
- * Campaign delivery modes. Automatic campaigns publish; review campaigns
- * submit every article to WordPress as Pending Review and never publish it.
+ * Campaign delivery modes and the WordPress status each one delivers with:
+ * automatic campaigns publish, review campaigns submit Pending Review, draft
+ * campaigns save a WordPress draft. Review and draft campaigns never publish.
  * Any other stored value resolves to automatic publication.
  */
 class CampaignModeResolver
@@ -13,6 +14,15 @@ class CampaignModeResolver
     public const AUTOMATIC_POST_STATUS = 'publish';
     public const REVIEW_DELIVERY_MODE = 'pending-review';
     public const REVIEW_POST_STATUS = 'pending';
+    public const DRAFT_DELIVERY_MODE = 'draft-wordpress';
+    public const DRAFT_POST_STATUS = 'draft';
+
+    /** Campaign delivery mode => the WordPress status its articles are delivered with. */
+    public const POST_STATUS_BY_MODE = [
+        self::AUTOMATIC_DELIVERY_MODE => self::AUTOMATIC_POST_STATUS,
+        self::REVIEW_DELIVERY_MODE => self::REVIEW_POST_STATUS,
+        self::DRAFT_DELIVERY_MODE => self::DRAFT_POST_STATUS,
+    ];
 
     public function automaticDeliveryMode(): string
     {
@@ -22,23 +32,35 @@ class CampaignModeResolver
     /** @return array<int, string> */
     public function campaignDeliveryModes(): array
     {
-        return [self::AUTOMATIC_DELIVERY_MODE, self::REVIEW_DELIVERY_MODE];
+        return array_keys(self::POST_STATUS_BY_MODE);
     }
 
-    /** The campaign's own delivery mode: review when stored as review, otherwise automatic. */
+    /** The campaign's own delivery mode: a known campaign mode, otherwise automatic. */
     public function campaignDeliveryMode(?string $mode): string
     {
-        return $this->normalizeDeliveryMode($mode) === self::REVIEW_DELIVERY_MODE
-            ? self::REVIEW_DELIVERY_MODE
-            : self::AUTOMATIC_DELIVERY_MODE;
+        $normalized = $this->normalizeDeliveryMode($mode);
+
+        return isset(self::POST_STATUS_BY_MODE[$normalized]) ? $normalized : self::AUTOMATIC_DELIVERY_MODE;
     }
 
     /** The WordPress status a campaign article is delivered with. */
     public function postStatus(?string $mode): string
     {
-        return $this->campaignDeliveryMode($mode) === self::REVIEW_DELIVERY_MODE
-            ? self::REVIEW_POST_STATUS
-            : self::AUTOMATIC_POST_STATUS;
+        return self::POST_STATUS_BY_MODE[$this->campaignDeliveryMode($mode)];
+    }
+
+    /** The campaign delivery mode for a requested WordPress status (publish, pending, draft), or null. */
+    public function deliveryModeForPostStatus(?string $postStatus): ?string
+    {
+        $mode = array_search(strtolower(trim((string) $postStatus)), self::POST_STATUS_BY_MODE, true);
+
+        return $mode === false ? null : $mode;
+    }
+
+    /** Whether this campaign mode makes articles public on its own. */
+    public function publishesAutomatically(?string $mode): bool
+    {
+        return $this->campaignDeliveryMode($mode) === self::AUTOMATIC_DELIVERY_MODE;
     }
 
     /**
