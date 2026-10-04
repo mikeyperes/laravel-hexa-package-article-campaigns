@@ -15,6 +15,15 @@ class HomepageCategoryPoolDefinition
 
     public const MANIFEST_API_VERSION = 1;
 
+    /** The identical saved scope is used for pool screening and extracted-source checks. */
+    public static function classificationFocus(array $definition): string
+    {
+        $label = trim((string) data_get($definition, 'publication_focus.label', ''));
+        $instructions = trim((string) data_get($definition, 'publication_focus.instructions', ''));
+
+        return $instructions === '' ? $label : trim($label."\nCampaign source instructions: ".$instructions);
+    }
+
     public static function applySettings(array $resolved, array $definition): array
     {
         if (! self::isUsableManifestDefinition($definition)) {

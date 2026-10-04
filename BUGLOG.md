@@ -1,5 +1,15 @@
 # Campaign Bug Log — laravel-hexa-package-article-campaigns
 
+## CAMPAIGN-BUG-177 — Saved campaign scope was discarded before source searches and screening
+
+- **Severity:** High
+- **Status:** Patched 2026-10-04 13:59:01 EST; production source publication recorded by the release commit.
+- **Symptom:** Campaign 60 stored blockchain, Web3, crypto infrastructure, tokenization, DeFi, regulation and institutional digital-asset news, yet its Finance searches were unqualified and its screening focus was empty. Fifteen configured variants were truncated to twelve before the consuming app checked cooldowns.
+- **Impact:** Relevant searches were unreachable during cooldowns and candidate screening did not apply the campaign's saved scope.
+- **Root cause:** PublicationManifestMapper explicitly discarded campaignEditorial; CampaignDefinitionCompiler considered only publication identity; the planner could not enumerate a complete plan for an I/O owner to filter.
+- **Patch:** Optional saved topic and source instructions compile into publication_focus without replacing validated manifest categories. The topic's comma/semicolon-delimited subjects qualify existing lane searches; the same label/instructions are used by screening and extracted-source classification and participate in the existing fingerprint/cache binding. An absent topic preserves broad publication behavior and an explicit CoverageFocus retains precedence. A null planner limit enumerates the definition, letting the app enforce its execution budget after cooldowns. Subsequent scope edits trigger a rescan in the app adapter.
+- **Guard:** CRITICAL marker in CampaignDefinitionCompiler::campaignFocus; retain manifest identity/taxonomy checks, explicit CoverageFocus precedence, format/core/qualified-child guards (CAMPAIGN-BUG-153/158/159), and the article contract's sole ownership of writing rules (CAMPAIGN-BUG-141). Saved source instructions are classification scope, not an extra writer prompt. No tests or validators were run.
+
 ## CAMPAIGN-BUG-159 — Qualified child lanes searched only their parent's subject
 
 - **Severity:** High

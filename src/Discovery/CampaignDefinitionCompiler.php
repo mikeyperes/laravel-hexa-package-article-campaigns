@@ -18,6 +18,7 @@ final class CampaignDefinitionCompiler
      * @param array{name:string,description?:string,homepage_title?:string} $publication
      * @param array<string, mixed> $deliveryCapabilities
      * @param array<int, array<string, mixed>> $focusCategories manifest category records keyed by WordPress ID
+     * @param array{topic?:string,instructions?:string} $campaignEditorial saved campaign source scope
      */
     public function compile(
         string $manifestUrl,
@@ -31,6 +32,7 @@ final class CampaignDefinitionCompiler
         array $deliveryCapabilities = [],
         ?CoverageFocus $coverageFocus = null,
         array $focusCategories = [],
+        array $campaignEditorial = [],
     ): CampaignDefinition {
         if ($coverageFocus !== null) {
             return CampaignDefinition::compile(
@@ -53,7 +55,7 @@ final class CampaignDefinitionCompiler
             (string) ($publication['description'] ?? ''),
             (string) ($publication['homepage_title'] ?? ''),
         ]));
-        $focus = $this->searchPolicy->publicationFocus($identity);
+        $focus = $this->campaignFocus($campaignEditorial) ?? $this->searchPolicy->publicationFocus($identity);
         $compiledCategories = $this->compileCategories(
             $categories,
             $identity,
@@ -73,6 +75,39 @@ final class CampaignDefinitionCompiler
             $focus,
             $deliveryCapabilities,
         );
+    }
+
+    /** Saved campaign scope narrows searches and screening without replacing manifest lanes. */
+    private function campaignFocus(array $editorial): ?array
+    {
+        // CRITICAL — see BUGLOG.md CAMPAIGN-BUG-177. An absent topic keeps
+        // the publication's broad policy; never infer scope from its brand.
+        $topic = trim(preg_replace('/\s+/u', ' ', strip_tags((string) ($editorial['topic'] ?? ''))) ?? '');
+        if ($topic === '') {
+            return null;
+        }
+        $terms = [];
+        foreach (preg_split('/[,;]+/u', $topic) ?: [] as $part) {
+            $term = trim(preg_replace('/^and\s+|\s+news$/iu', '', trim($part)) ?? '');
+            if ($term !== '') {
+                $terms[Str::lower($term)] = $term;
+            }
+        }
+        $terms = array_slice(array_values($terms), 0, 24);
+        if ($terms === []) {
+            throw new RuntimeException('The saved campaign topic has no search subject. No AI was called.');
+        }
+
+        return [
+            'label' => $topic,
+            'query_prefix' => '('.implode(' OR ', array_map(
+                static fn (string $term): string => '"'.str_replace('"', '', $term).'"',
+                $terms,
+            )).')',
+            'terms' => $terms,
+            'instructions' => trim(preg_replace('/\s+/u', ' ', strip_tags((string) ($editorial['instructions'] ?? ''))) ?? ''),
+            'source' => 'campaign_editorial',
+        ];
     }
 
     /**

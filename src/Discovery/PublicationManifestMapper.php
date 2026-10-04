@@ -44,13 +44,13 @@ final class PublicationManifestMapper
     }
 
     /**
-     * The fourth argument is retained for source compatibility only. Version 2
-     * definitions never read campaign names, old topics or saved prompt text.
+     * Campaign scope can narrow the validated homepage lanes. Names and
+     * writing prompts never replace first-party category or taxonomy evidence.
      *
      * A coverage focus replaces the homepage lanes with its reviewed, eligible
      * WordPress categories; the manifest is validated exactly as before.
      *
-     * @param array{name?: string, topic?: string} $campaignEditorial
+     * @param array{topic?: string, instructions?: string} $campaignEditorial
      */
     public function map(array $manifest, string $siteUrl, ?string $effectiveUrl = null, array $campaignEditorial = [], ?CoverageFocus $coverageFocus = null): array
     {
@@ -210,8 +210,6 @@ final class PublicationManifestMapper
             throw $this->failure('the WordPress default category was incorrectly marked campaign eligible');
         }
 
-        unset($campaignEditorial);
-
         $focusCategories = [];
         foreach ($coverageFocus?->categoryIds() ?? [] as $categoryId) {
             $category = $taxonomyIndex[$categoryId] ?? null;
@@ -240,6 +238,7 @@ final class PublicationManifestMapper
             $this->deliveryCapabilities($delivery),
             $coverageFocus,
             $focusCategories,
+            $campaignEditorial,
         )->toArray();
     }
 

@@ -44,7 +44,7 @@ class CampaignSourceRelevancePolicy
         return $this->classifier->classify($source, $categories, [
             'name' => trim((string) ($resolved['site_name'] ?? $resolved['publication_name'] ?? '')) ?: (string) parse_url($homepage, PHP_URL_HOST),
             'homepage_url' => $homepage,
-            'focus' => (string) data_get($pool, 'publication_focus.label', ''),
+            'focus' => HomepageCategoryPoolDefinition::classificationFocus($pool),
         ]);
     }
 

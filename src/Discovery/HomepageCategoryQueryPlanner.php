@@ -10,13 +10,15 @@ final class HomepageCategoryQueryPlanner
     /**
      * @return array<int, array{category:array<string, mixed>,query:string}>
      */
-    public function plan(array $definition, int $limit = 12, ?string $categoryName = null): array
+    public function plan(array $definition, ?int $limit = 12, ?string $categoryName = null): array
     {
         if (! HomepageCategoryPoolDefinition::isUsableManifestDefinition($definition)) {
             throw new InvalidArgumentException('A valid manifest-backed category definition is required.');
         }
 
-        $limit = max(1, min(300, $limit));
+        // Null enumerates the reviewed definition so an I/O owner can apply
+        // its execution limit after checking query cooldowns.
+        $limit = $limit === null ? PHP_INT_MAX : max(1, min(300, $limit));
         $lanes = array_values(array_filter(
             (array) $definition['categories'],
             static fn (mixed $category): bool => is_array($category)

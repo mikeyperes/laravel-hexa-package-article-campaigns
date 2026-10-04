@@ -8,9 +8,10 @@ use JsonException;
 /**
  * Immutable, versioned policy input for a manifest-backed campaign.
  *
- * This object contains only validated first-party publication evidence and
- * deterministic compiled policy. Campaign names, old topics, model prompts,
- * database rows and application adapters are intentionally outside it.
+ * This object contains validated first-party publication evidence and
+ * deterministic compiled policy, including an optional saved campaign source
+ * scope. Campaign names, writing prompts, database rows and application
+ * adapters are intentionally outside it.
  */
 final readonly class CampaignDefinition
 {
