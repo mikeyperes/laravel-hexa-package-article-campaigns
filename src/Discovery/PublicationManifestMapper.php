@@ -78,7 +78,9 @@ final class PublicationManifestMapper
         if (! in_array($collectionStatus, ['complete', 'partial'], true)) {
             throw $this->failure('the manifest collection status is invalid');
         }
-        if ($collectionStatus === 'partial') {
+        // A coverage focus replaces the homepage lanes, so homepage widget
+        // coverage only gates campaigns that take their categories from it.
+        if ($collectionStatus === 'partial' && $coverageFocus === null) {
             $warning = trim(implode('; ', array_slice(array_map(
                 fn (array $value): string => $this->collectionWarningSummary($value),
                 $collectionWarnings,
@@ -127,62 +129,65 @@ final class PublicationManifestMapper
             throw $this->failure('the manifest fingerprint does not match its payload');
         }
 
-        $homepageCategories = $homepage['categories'] ?? null;
-        $campaignCategories = $homepage['campaign_categories'] ?? null;
-        if (! is_array($homepageCategories) || ! is_array($campaignCategories)) {
-            throw $this->failure('the homepage category collections are missing');
-        }
-        if ($homepageCategories === []) {
-            throw $this->failure('the Elementor homepage contains no publication categories');
-        }
-        if (count($homepageCategories) > self::MAXIMUM_CATEGORIES) {
-            throw $this->failure('the Elementor homepage exposes more than '.self::MAXIMUM_CATEGORIES.' categories');
-        }
-
-        $homepageIndex = $this->categoryIndex($homepageCategories, $siteUrl, true);
-        $widgetEvidence = $this->queryWidgetEvidence($homepage['query_widgets'], $siteUrl);
-        $widgetCategoryIds = $widgetEvidence['category_ids'];
-        $homepageCategoryIds = array_keys($homepageIndex);
-        sort($widgetCategoryIds);
-        sort($homepageCategoryIds);
-        if ($widgetCategoryIds !== $homepageCategoryIds) {
-            throw $this->failure('the homepage category catalog does not match its Elementor query widgets');
-        }
-        if ($campaignCategories === []) {
-            $statuses = array_unique(array_column($homepageIndex, 'policy_status'));
-            $reason = count(array_diff($statuses, ['reserved', 'excluded'])) === 0
-                ? 'the Elementor homepage contains only reserved or excluded categories'
-                : 'the Elementor homepage contains no eligible campaign categories';
-            throw $this->failure($reason);
-        }
-        if (count($campaignCategories) > self::MAXIMUM_CATEGORIES) {
-            throw $this->failure('the manifest exposes more than '.self::MAXIMUM_CATEGORIES.' eligible campaign categories');
-        }
-
-        $campaignIndex = $this->categoryIndex($campaignCategories, $siteUrl, true, 'eligible');
-        $eligibleIds = array_keys(array_filter(
-            $homepageIndex,
-            static fn (array $category): bool => $category['policy_status'] === 'eligible',
-        ));
-        $campaignIds = array_keys($campaignIndex);
-        sort($eligibleIds);
-        sort($campaignIds);
-        if ($campaignIds !== $eligibleIds) {
-            throw $this->failure('the eligible campaign categories do not match the homepage category policy');
-        }
-
-        foreach ($campaignIndex as $id => $category) {
-            $homepageCategory = $homepageIndex[$id] ?? null;
-            if (! is_array($homepageCategory)
-                || $homepageCategory['name'] !== $category['name']
-                || $homepageCategory['slug'] !== $category['slug']
-                || $this->sourceKeys($homepageCategory) !== $this->sourceKeys($category)) {
-                throw $this->failure('an eligible campaign category does not match the homepage category catalog');
+        $campaignIndex = [];
+        if ($coverageFocus === null) {
+            $homepageCategories = $homepage['categories'] ?? null;
+            $campaignCategories = $homepage['campaign_categories'] ?? null;
+            if (! is_array($homepageCategories) || ! is_array($campaignCategories)) {
+                throw $this->failure('the homepage category collections are missing');
             }
-            foreach ($category['homepage_evidence']['sources'] as $source) {
-                $key = $id.'|'.$source['elementor_id'].'|'.$source['widget_type'];
-                if (! isset($widgetEvidence['sources'][$key])) {
-                    throw $this->failure('an eligible campaign category has unmatched Elementor query-widget evidence');
+            if ($homepageCategories === []) {
+                throw $this->failure('the Elementor homepage contains no publication categories');
+            }
+            if (count($homepageCategories) > self::MAXIMUM_CATEGORIES) {
+                throw $this->failure('the Elementor homepage exposes more than '.self::MAXIMUM_CATEGORIES.' categories');
+            }
+
+            $homepageIndex = $this->categoryIndex($homepageCategories, $siteUrl, true);
+            $widgetEvidence = $this->queryWidgetEvidence($homepage['query_widgets'], $siteUrl);
+            $widgetCategoryIds = $widgetEvidence['category_ids'];
+            $homepageCategoryIds = array_keys($homepageIndex);
+            sort($widgetCategoryIds);
+            sort($homepageCategoryIds);
+            if ($widgetCategoryIds !== $homepageCategoryIds) {
+                throw $this->failure('the homepage category catalog does not match its Elementor query widgets');
+            }
+            if ($campaignCategories === []) {
+                $statuses = array_unique(array_column($homepageIndex, 'policy_status'));
+                $reason = count(array_diff($statuses, ['reserved', 'excluded'])) === 0
+                    ? 'the Elementor homepage contains only reserved or excluded categories'
+                    : 'the Elementor homepage contains no eligible campaign categories';
+                throw $this->failure($reason);
+            }
+            if (count($campaignCategories) > self::MAXIMUM_CATEGORIES) {
+                throw $this->failure('the manifest exposes more than '.self::MAXIMUM_CATEGORIES.' eligible campaign categories');
+            }
+
+            $campaignIndex = $this->categoryIndex($campaignCategories, $siteUrl, true, 'eligible');
+            $eligibleIds = array_keys(array_filter(
+                $homepageIndex,
+                static fn (array $category): bool => $category['policy_status'] === 'eligible',
+            ));
+            $campaignIds = array_keys($campaignIndex);
+            sort($eligibleIds);
+            sort($campaignIds);
+            if ($campaignIds !== $eligibleIds) {
+                throw $this->failure('the eligible campaign categories do not match the homepage category policy');
+            }
+
+            foreach ($campaignIndex as $id => $category) {
+                $homepageCategory = $homepageIndex[$id] ?? null;
+                if (! is_array($homepageCategory)
+                    || $homepageCategory['name'] !== $category['name']
+                    || $homepageCategory['slug'] !== $category['slug']
+                    || $this->sourceKeys($homepageCategory) !== $this->sourceKeys($category)) {
+                    throw $this->failure('an eligible campaign category does not match the homepage category catalog');
+                }
+                foreach ($category['homepage_evidence']['sources'] as $source) {
+                    $key = $id.'|'.$source['elementor_id'].'|'.$source['widget_type'];
+                    if (! isset($widgetEvidence['sources'][$key])) {
+                        throw $this->failure('an eligible campaign category has unmatched Elementor query-widget evidence');
+                    }
                 }
             }
         }
