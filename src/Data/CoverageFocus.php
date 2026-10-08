@@ -47,6 +47,7 @@ final readonly class CoverageFocus
         public int $recentDays,
         public int $fallbackDays,
         public bool $reportsAllegations,
+        public bool $allowDefaultCategory = false,
     ) {}
 
     /** @param array<string, mixed> $value */
@@ -115,6 +116,9 @@ final readonly class CoverageFocus
             $recentDays,
             $fallbackDays,
             filter_var($value['reports_allegations'] ?? false, FILTER_VALIDATE_BOOLEAN),
+            // An explicit owner choice to file into the site's default
+            // category (often "News"); every other category rule still applies.
+            filter_var($value['allow_default_category'] ?? false, FILTER_VALIDATE_BOOLEAN),
         );
     }
 
@@ -137,6 +141,7 @@ final readonly class CoverageFocus
             'recent_days' => $this->recentDays,
             'fallback_days' => $this->fallbackDays,
             'reports_allegations' => $this->reportsAllegations,
+            'allow_default_category' => $this->allowDefaultCategory,
         ];
     }
 

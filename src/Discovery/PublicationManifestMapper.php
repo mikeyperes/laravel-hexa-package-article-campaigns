@@ -218,7 +218,10 @@ final class PublicationManifestMapper
         $focusCategories = [];
         foreach ($coverageFocus?->categoryIds() ?? [] as $categoryId) {
             $category = $taxonomyIndex[$categoryId] ?? null;
-            if (! is_array($category) || $category['policy_status'] !== 'eligible' || $categoryId === $defaultCategoryId) {
+            $chosenDefault = $categoryId === $defaultCategoryId && $coverageFocus->allowDefaultCategory
+                && is_array($category) && $category['policy_status'] === 'excluded';
+            if (! $chosenDefault
+                && (! is_array($category) || $category['policy_status'] !== 'eligible' || $categoryId === $defaultCategoryId)) {
                 throw $this->failure('coverage focus category '.$categoryId.' is not an eligible WordPress category');
             }
             if ($this->searchPolicy->laneSourceFormat($category) !== null) {
