@@ -33,7 +33,10 @@ final class HomepageCategoryQueryPlanner
         $seen = [];
         for ($index = 0; $index < $maximumVariants && count($planned) < $limit; $index++) {
             foreach ($lanes as $lane) {
-                $query = trim((string) (($lane['queries'] ?? [])[$index] ?? ''));
+                // CRITICAL — see laravel-hexa-app-publish BUGLOG.md CAMPAIGN-BUG-228.
+                // WordPress category names arrive HTML-escaped ("Health &amp; Wellness");
+                // the escape must not be searched literally.
+                $query = trim(html_entity_decode((string) (($lane['queries'] ?? [])[$index] ?? ''), ENT_QUOTES | ENT_HTML5, 'UTF-8'));
                 $key = mb_strtolower(preg_replace('/\s+/', ' ', $query) ?: $query);
                 if ($query === '' || isset($seen[$key])) {
                     continue;

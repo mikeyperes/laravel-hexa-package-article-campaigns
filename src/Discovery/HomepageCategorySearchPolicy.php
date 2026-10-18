@@ -238,7 +238,7 @@ class HomepageCategorySearchPolicy
             $mentions = 0;
             $titleMatch = false;
             foreach (array_unique($terms) as $term) {
-                $term = Str::lower(Str::ascii((string) $term));
+                $term = Str::lower(Str::ascii(html_entity_decode((string) $term, ENT_QUOTES | ENT_HTML5, 'UTF-8')));
                 if ($term === '') {
                     continue;
                 }
@@ -259,7 +259,7 @@ class HomepageCategorySearchPolicy
             ['title', 'description', 'snippet', 'text', 'content']
         )))));
         foreach ($terms as $term) {
-            $term = Str::lower(Str::ascii((string) $term));
+            $term = Str::lower(Str::ascii(html_entity_decode((string) $term, ENT_QUOTES | ENT_HTML5, 'UTF-8')));
             if ($term !== '' && preg_match('/(?<![a-z0-9])'.preg_quote($term, '/').'(?:s|es)?(?![a-z0-9])/i', $text)) {
                 return true;
             }

@@ -221,4 +221,11 @@ class HomepageCategorySearchPolicyTest extends TestCase
         $this->assertFalse($result['selected_category_supported']);
         $this->assertSame('generic_category_preserved', $result['reason']);
     }
+
+    public function test_html_escaped_category_terms_match_plain_text(): void
+    {
+        // CAMPAIGN-BUG-228: WordPress names arrive as "Health &amp; Wellness".
+        $search = new HomepageCategorySearchPolicy();
+        $this->assertTrue($search->matches(['title' => 'Health & wellness clinics expand', 'description' => ''], ['health &amp; wellness']));
+    }
 }
