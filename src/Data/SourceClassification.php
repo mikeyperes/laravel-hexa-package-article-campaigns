@@ -12,6 +12,8 @@ final readonly class SourceClassification
         public string $subject,
         public string $reason,
         public string $model = '',
+        /** One SourceClassificationPrompt::REJECT_CODES value when it does not fit, otherwise ''. */
+        public string $rejectCode = '',
     ) {}
 
     public function accepts(string $category): bool
@@ -30,6 +32,7 @@ final readonly class SourceClassification
             'subject' => $this->subject,
             'reason' => $this->reason,
             'model' => $this->model,
+            'reject_code' => $this->rejectCode,
         ];
     }
 }

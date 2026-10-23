@@ -33,6 +33,31 @@ final class SourceScreeningPromptTest extends TestCase
         $this->assertStringContainsString('buying guide', $system);
     }
 
+    /** CAMPAIGN-BUG-231: one checklist, judged on full text, every rejection coded. */
+    public function test_candidates_are_judged_on_full_text_against_one_coded_checklist(): void
+    {
+        $prompt = new SourceClassificationPrompt();
+        $user = $prompt->screenUser([[
+            'title' => 'Lender merges', 'url' => 'https://news.example.com/a', 'description' => 'snippet only',
+            'text' => str_repeat('The two banks agreed to merge. ', 200), 'recent_titles' => ['Banks plan merger — earlier coverage'],
+        ]], self::CATEGORIES, ['name' => 'Example Daily']);
+        $this->assertStringContainsString('Text: The two banks agreed to merge.', $user);
+        $this->assertStringContainsString('Possible repeat of recent article: Banks plan merger', $user);
+        $this->assertStringNotContainsString('Snippet:', $user, 'full text replaces the snippet');
+        $this->assertLessThan(SourceClassificationPrompt::MAX_SCREEN_SOURCE_CHARACTERS + 400, mb_strlen($user));
+        foreach (array_keys(SourceClassificationPrompt::REJECT_CODES) as $code) {
+            $this->assertStringContainsString('- '.$code.':', $prompt->screenSystem());
+            $this->assertStringContainsString('- '.$code.':', $prompt->system());
+        }
+
+        $results = $prompt->parseScreen('[{"id":1,"category":"Business","fits_publication":false,"reject_code":"listicle"},'
+            .'{"id":2,"category":"Business","fits_publication":false,"reject_code":"made_up"},'
+            .'{"id":3,"category":null,"fits_publication":false},'
+            .'{"id":4,"category":"Business","fits_publication":true,"reject_code":"promotional"}]', self::CATEGORIES, 4);
+        $this->assertSame(['listicle', 'other', 'off_scope', ''], array_map(static fn ($r): string => $r->rejectCode, $results));
+        $this->assertSame('', $results[3]->toArray()['reject_code']);
+    }
+
     public function test_answers_map_to_candidates_by_id_and_bad_rows_stay_null(): void
     {
         $results = (new SourceClassificationPrompt())->parseScreen(

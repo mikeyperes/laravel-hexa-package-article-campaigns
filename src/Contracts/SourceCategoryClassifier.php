@@ -22,10 +22,11 @@ interface SourceCategoryClassifier
     public function classify(array $source, array $categories, array $publication = []): ?SourceClassification;
 
     /**
-     * Screen search candidates by title and snippet before any page is
-     * fetched. One result per candidate, same keys; null where unavailable.
+     * Judge search candidates against the one story checklist, many at once,
+     * from the full text each carries (`text`, optional `recent_titles`).
+     * One result per candidate, same keys; null where unavailable.
      *
-     * @param  array<int|string, array<string, mixed>>  $candidates  title, url and optional description
+     * @param  array<int|string, array<string, mixed>>  $candidates  title, url, text and optional description
      * @param  array<int, array<string, mixed>>  $categories
      * @param  array<string, mixed>  $publication
      * @return array<int|string, SourceClassification|null>
