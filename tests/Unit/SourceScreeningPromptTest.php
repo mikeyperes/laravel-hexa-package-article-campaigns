@@ -33,6 +33,19 @@ final class SourceScreeningPromptTest extends TestCase
         $this->assertStringContainsString('buying guide', $system);
     }
 
+    /** CAMPAIGN-BUG-233: every rule code has one number and title; reader codes are rule 8. */
+    public function test_every_rejection_code_maps_to_one_numbered_rule(): void
+    {
+        $numbers = array_column(\hexa_package_article_campaigns\Classification\StoryChecklist::RULES, 0);
+        $this->assertSame(range(1, count($numbers)), $numbers, 'rules are numbered 1..N in order');
+        foreach (array_keys(SourceClassificationPrompt::REJECT_CODES) as $code) {
+            $this->assertNotNull(\hexa_package_article_campaigns\Classification\StoryChecklist::rule($code), $code);
+        }
+        $this->assertSame('Rule 8 · Page readable', \hexa_package_article_campaigns\Classification\StoryChecklist::label('bot_challenge'));
+        $this->assertSame('Rule 3 · Not a live blog', \hexa_package_article_campaigns\Classification\StoryChecklist::label('live_blog'));
+        $this->assertNull(\hexa_package_article_campaigns\Classification\StoryChecklist::label('publish_upload_failed'));
+    }
+
     /** CAMPAIGN-BUG-231: one checklist, judged on full text, every rejection coded. */
     public function test_candidates_are_judged_on_full_text_against_one_coded_checklist(): void
     {
@@ -45,10 +58,16 @@ final class SourceScreeningPromptTest extends TestCase
         $this->assertStringContainsString('Possible repeat of recent article: Banks plan merger', $user);
         $this->assertStringNotContainsString('Snippet:', $user, 'full text replaces the snippet');
         $this->assertLessThan(SourceClassificationPrompt::MAX_SCREEN_SOURCE_CHARACTERS + 400, mb_strlen($user));
-        foreach (array_keys(SourceClassificationPrompt::REJECT_CODES) as $code) {
-            $this->assertStringContainsString('- '.$code.':', $prompt->screenSystem());
-            $this->assertStringContainsString('- '.$code.':', $prompt->system());
+        foreach (\hexa_package_article_campaigns\Classification\StoryChecklist::RULES as $code => [$number, $title]) {
+            if ($number < 11) {
+                continue;
+            }
+            $this->assertStringContainsString($number.'. '.$code.' ('.$title.'):', $prompt->screenSystem());
+            $this->assertStringContainsString($number.'. '.$code.' ('.$title.'):', $prompt->system());
         }
+        $focused = $prompt->screenUser([['title' => 'T', 'url' => 'https://n.example/a', 'text' => 'x']], self::CATEGORIES, ['name' => 'R', 'campaign_focus' => 'Celebrity business and wealth news.', 'word_min' => 600]);
+        $this->assertStringContainsString('Campaign focus (rule 12): Celebrity business and wealth news.', $focused);
+        $this->assertStringContainsString('Required article length (rule 19): at least 600 words', $focused);
 
         $results = $prompt->parseScreen('[{"id":1,"category":"Business","fits_publication":false,"reject_code":"listicle"},'
             .'{"id":2,"category":"Business","fits_publication":false,"reject_code":"made_up"},'

@@ -18,25 +18,11 @@ final class SourceClassificationPrompt
     /** Full text per candidate when many are judged in one request. */
     public const MAX_SCREEN_SOURCE_CHARACTERS = 3000;
 
-    /**
-     * The one story checklist: every reason a source is not used. A rejected
-     * source carries exactly one code, so rejections can be counted and
-     * analysed by outlet, campaign and reason.
-     */
+    /** Every judge rule code (StoryChecklist rules 11-23). */
     public const REJECT_CODES = [
-        'off_scope' => 'no category genuinely fits, or the story reaches one only through a passing mention',
-        'focus_conflict' => 'it contradicts the stated publication focus or audience',
-        'format_only' => 'it fits only a format category (such as Press Release, Features or Guides) while its topic matches none of the topical categories',
-        'promotional' => 'company marketing, sponsored or advertorial content, a sign-up offer, contest, giveaway or sales pitch',
-        'press_release' => 'a company announcement or press release reprinted without independent reporting',
-        'buying_guide' => 'a buying guide, product review or comparison, deals page, or "best"/"top" product list',
-        'listicle' => 'a ranked or numbered list, a roundup of unrelated items, or event and what\'s-on listings',
-        'stock_filler' => 'automated stock, earnings-call, price-target or market-data summaries',
-        'thin' => 'too little real reporting for a full article: a stub, teaser, video caption, or a page that is mostly navigation, ads or a paywall notice',
-        'live_blog' => 'rolling live coverage that mixes several events',
-        'repeat' => 'the same event, announcement, lawsuit, study or statistic as one of the publication\'s recent articles, even under another headline',
-        'stale' => 'old news presented as new, or a development that is no longer current',
-        'other' => 'any other reason this source cannot honestly support a news article for this publication',
+        'off_scope' => 11, 'focus_conflict' => 12, 'format_only' => 13, 'promotional' => 14, 'press_release' => 15,
+        'buying_guide' => 16, 'listicle' => 17, 'stock_filler' => 18, 'thin' => 19, 'repeat' => 20, 'stale' => 21,
+        'hidden_instructions' => 22, 'live_blog' => 3, 'other' => 23,
     ];
 
     public function system(): string
@@ -71,10 +57,10 @@ final class SourceClassificationPrompt
             'Decide what the story is mainly about, not which words it happens to contain.',
             'Choose the single best category from the list, or null when none genuinely fits.',
             'The category list is the publication\'s own editorial scope. A story whose main subject clearly belongs in one of its topical categories fits the publication.',
-            'fits_publication is false when any item on this checklist applies; put that item\'s code in reject_code:',
+            'Check the story against every numbered rule. fits_publication is false when any rule fails; put that rule\'s code (the word before the brackets) in reject_code and say in reason what in the text breaks it:',
         ];
-        foreach (self::REJECT_CODES as $code => $description) {
-            $rules[] = '- '.$code.': '.$description.'.';
+        foreach (StoryChecklist::judgeLines() as $line) {
+            $rules[] = $line;
         }
         $rules[] = 'Otherwise fits_publication is true and reject_code is "".';
         $rules[] = 'When it repeats a recent article, say which one in the reason.';
@@ -95,6 +81,12 @@ final class SourceClassificationPrompt
         }
         if ($this->filled($publication['focus'] ?? null)) {
             $lines[] = 'Publication focus: '.$this->oneLine((string) $publication['focus']);
+        }
+        if ($this->filled($publication['campaign_focus'] ?? null)) {
+            $lines[] = 'Campaign focus (rule 12): '.$this->oneLine(mb_substr((string) $publication['campaign_focus'], 0, 1200));
+        }
+        if ((int) ($publication['word_min'] ?? 0) > 0) {
+            $lines[] = 'Required article length (rule 19): at least '.(int) $publication['word_min'].' words, using only facts in the source.';
         }
 
         $recent = array_values(array_filter(array_map(fn ($title): string => $this->oneLine((string) $title), (array) ($publication['recent_titles'] ?? []))));
