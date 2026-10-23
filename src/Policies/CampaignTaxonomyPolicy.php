@@ -87,7 +87,13 @@ class CampaignTaxonomyPolicy
      */
     public function enforceTags(array $generated, array $allowed, array $sourceTexts, string $html, string $title, int $limit): array
     {
-        $allowed = array_values(array_filter(array_map(static fn ($tag): string => trim((string) $tag), $allowed)));
+        // A zero limit is a campaign with tags turned off: some sites syndicate
+        // or bill by tag, so no tag may be generated, backfilled or kept.
+        if ($limit <= 0) {
+            return [];
+        }
+
+        $allowed =array_values(array_filter(array_map(static fn ($tag): string => trim((string) $tag), $allowed)));
         if ($allowed === []) {
             return $this->limitTerms($generated, $limit);
         }
